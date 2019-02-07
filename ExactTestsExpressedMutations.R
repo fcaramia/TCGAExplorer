@@ -1,6 +1,7 @@
 rm(list = ls())
 library(dplyr)
 library(gtools)
+library(data.table)
 source('PropensityScoresFunctions.R')
 source('ExpressionPlotsFunctions.R')
 Exact_Statistic <- function(a, b, c , d){
@@ -12,8 +13,8 @@ Exact_Statistic <- function(a, b, c , d){
   return(z)
 }
 #Datasets and directories and variables
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
-#datasets = c("READ")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'LUAD')
+#datasets = c("KIRC")
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 
 ###Clinical Data####
@@ -33,14 +34,14 @@ cofounding.factors.default = c('PATIENT_ID','GENDER','AGE_AT_INITIAL_PATHOLOGIC_
 
 p53.int = read.csv("~/Documents/PhD/GenderAnalysis/TP53_interactions/Candidates.2018.03.01.csv")
 
-p53.high = p53.int[which(p53.int$score>=0.6),'ID']
-p53.med = p53.int[which(p53.int$score>=0.4),'ID']
-p53.low = p53.int$ID
+p53.high = as.vector(p53.int[which(p53.int$score>=0.6),'ID'])
+p53.med = as.vector(p53.int[which(p53.int$score>=0.4),'ID'])
+p53.low = as.vector(p53.int$ID)
 
 # p53.int.string = c("EFNB1","PSMD10","STAG2","MAGED2","EDA2R","RNF128","HUWE1","TAF1",
-#             "BMX","MAGEB18","TSC22D3","MAGEA2B","ACSL4","MAGEH1","PLAC1","BRCC3",
-#             "SH2D1A","UBE2A","SLC25A5","ATRX","RPS4X","AR","APEX2","FOXP3","RBM3",
-#             "ARX","POLA1","PHKA2","UTP14A","DDX3X","CUL4B","CITED1","YY2")
+#              "BMX","MAGEB18","TSC22D3","MAGEA2B","ACSL4","MAGEH1","PLAC1","BRCC3",
+#              "SH2D1A","UBE2A","SLC25A5","ATRX","RPS4X","AR","APEX2","FOXP3","RBM3",
+#              "ARX","POLA1","PHKA2","UTP14A","DDX3X","CUL4B","CITED1","YY2")
 # p53.int.boa = c("XGY2","PRKX","MIR4767","VCX","TBL1X","WWC3","NHS-AS1","NHS","PHKA2-AS1",
 #                 "SH3KBP1","MAGEB5","TAB3","DMD","RNU6-16P","TMEM47","BCOR","NYX","PPP1R2P9",
 #                 "LOC101927501","KDM6A","LOC401585","LINC01186","JADE3","ZNF81","PHF8","UQCRBP1",
@@ -50,7 +51,7 @@ p53.low = p53.int$ID
 #                 "FGF13","MIR320D2","SPANXB1","LINC00894","MIR4330","PASD1","GABRE","FLNA")
 
 ###Read DNA VAF#####
-DNA.VAF = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv", as.is=T)
+DNA.VAF = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv")
 DNA.VAF %>% filter(CANCER_TYPE%in%datasets) -> DNA.VAF
 DNA.VAF %>% group_by(GENDER,CANCER_TYPE,PATIENT_ID) %>% dplyr::summarise() %>% 
   group_by(GENDER,CANCER_TYPE) %>% dplyr::summarise(N.P = n()) -> patient.numbers.by.cancer
@@ -80,12 +81,14 @@ DNA.VAF  %>% group_by(GENDER,CANCER_TYPE,HUGO_SYMBOL,PATIENT_ID,CHROMOSOME) %>%
   dplyr::summarise()  %>%
   group_by(GENDER,CANCER_TYPE,HUGO_SYMBOL,CHROMOSOME) %>% dplyr::summarise(N.M = n()) -> cancer.mutations.by.gene
 
-write.csv(cancer.mutations.by.gene,paste(output.dir,'mutation.by.gene.csv',sep = ''),row.names = F)
+cancer.mutations.by.gene$EXCEL = paste('`',cancer.mutations.by.gene$HUGO_SYMBOL,sep = '')
+
+write.csv(cancer.mutations.by.gene,paste(output.dir,'mutation.by.gene.KIRC.csv',sep = ''),row.names = F)
 
 DNA.VAF  %>% group_by(GENDER,HUGO_SYMBOL,PATIENT_ID,CHROMOSOME) %>% 
   dplyr::summarise()  %>%
   group_by(GENDER,HUGO_SYMBOL,CHROMOSOME) %>% dplyr::summarise(N.M = n()) -> cancer.mutations.by.gene.total
-
+cancer.mutations.by.gene.total$EXCEL = paste('`',cancer.mutations.by.gene.total$HUGO_SYMBOL,sep='')
 write.csv(cancer.mutations.by.gene.total,paste(output.dir,'mutation.by.gene.total.csv',sep = ''),row.names = F)
 
 
@@ -98,8 +101,9 @@ DNA.VAF %>% group_by(GENDER,CANCER_TYPE,PATIENT_ID,TP53.STATUS) %>% dplyr::summa
 DNA.VAF %>% group_by(GENDER,PATIENT_ID,TP53.STATUS) %>% dplyr::summarise() %>% 
   group_by(GENDER,TP53.STATUS) %>% dplyr::summarise(N.P = n()) -> patient.numbers.tp53.status
 
-#RMAF DATA
-RMAF = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.V4.csv", as.is=T)
+
+######RMAF DATA#############
+RMAF = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.V5.csv", as.is=T)
 
 filter.out = c("Silent",'Intron','IGR',"In_Frame_Ins" ,"In_Frame_Del", "lincRNA" )
 
@@ -125,8 +129,8 @@ for (cancer in datasets){
   pat.ids = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{2}).*","\\2", colnames(norm.counts))
   if(cancer=='LGG'){
     pat.ids.norm = paste(pat.ids,'01',sep = '-')
-  }
-  else{
+  }else{
+  
     pat.ids.norm = paste(pat.ids,'11',sep = '-')
   }
 
@@ -168,13 +172,18 @@ for (cancer in datasets){
 ###############RESET###################
 write.csv(RMAF,paste(output.dir,'AllDataSets/Computed.All.RMAF.csv',sep = ''))
 
-RMAF = read.csv(paste(output.dir,'AllDataSets/Computed.RMAF.csv',sep = ''))
+P.Coding.X.genes = read.csv("~/Documents/PhD/GenderAnalysis/Genes.Coding.X.csv")
+RMAF = read.csv(paste(output.dir,'AllDataSets/Computed.All.RMAF.csv',sep = ''))
+RMAF %>% filter(ENTREZ_GENE_ID%in%P.Coding.X.genes$entrezgene) -> RMAF
+RMAF$POLYPHEN_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$POLYPHEN)
+RMAF$SIFT_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$SIFT)
+
 
 #Clean low reads
 RMAF$SUM = RMAF$REF_COUNT + RMAF$ALT_COUNT
 
 RMAF %>% mutate(RMAF = ifelse(SUM>=10,ALT_COUNT/SUM,0.0)) %>% filter(!(EXPRS.GENE=='NOT.EXPRS'&SUM<10)) %>%
-  filter(!(SUM<10&Z.SCORE>-4))-> RMAF
+  filter(!(SUM<10&Z.SCORE>-2))-> RMAF
 
 RMAF[which(RMAF$Z.SCORE<=-4&RMAF$SUM<10),'RMAF'] = 1.0
 RMAF$LOGIT.RMAF = logit(x = RMAF$RMAF,min = 0-0.1 , max = 1+0.1)
@@ -202,7 +211,8 @@ RMAF %>% group_by(HUGO_SYMBOL, PATIENT_ID) %>% dplyr::summarise(s=max(START_POSI
 RMAF$U_ID = paste(RMAF$HUGO_SYMBOL, RMAF$PATIENT_ID,RMAF$START_POSITION,sep = '.')
 RMAF %>% filter(U_ID %in% aux$U_ID) -> RMAF
 
-RMAF %>% group_by(HUGO_SYMBOL) %>% dplyr::summarise(n=n()) %>% filter(n>=10) -> aux
+RMAF %>% group_by(HUGO_SYMBOL,EM.RMAF,SM.RMAF) %>% dplyr::summarise(EM.SUM=sum(EM.RMAF),SM.SUM=sum(SM.RMAF)) %>% 
+  filter(EM.SUM>=10|SM.SUM>=10) -> aux
 RMAF %>% filter(HUGO_SYMBOL %in% aux$HUGO_SYMBOL) -> RMAF
 rm(aux)
 
@@ -245,6 +255,11 @@ rm(aux)
 ################################################################################################
 ###############Build SM and EM Matrix for PS tests#############################
 ################################################################################################
+backup = RMAF
+RMAF = backup
+
+#RMAF = filter(RMAF,POLYPHEN_DISCRETE=="possibly_damaging"|POLYPHEN_DISCRETE== "probably_damaging")
+#RMAF = filter(RMAF,POLYPHEN_DISCRETE == 'benign')
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
 clinical.data$PATHOLOGIC_STAGE <- toupper(gsub(pattern=badchars, replacement=".", x=clinical.data$PATHOLOGIC_STAGE))
 PS.SM.mat = data.frame(matrix(data = 0,nrow = length(unique(DNA.VAF$PATIENT_ID)), 
@@ -297,7 +312,13 @@ for(g in colnames(PS.SM.mat)){
 
 for (cancer in datasets){
   print(cancer)
+  
+  ###Filter for Cancer type and genes with at least 10 muts
   RMAF %>% filter(SM.RMAF==1,CANCER_TYPE==cancer) -> RMAF.SM
+  RMAF.SM %>% group_by(HUGO_SYMBOL,SM.RMAF) %>% dplyr::summarise(SM.SUM=sum(SM.RMAF)) %>%
+    filter(SM.SUM>=10) -> aux
+  RMAF.SM %>% filter(HUGO_SYMBOL %in% aux$HUGO_SYMBOL) -> RMAF.SM
+  
   DNA.VAF %>% filter(CANCER_TYPE==cancer) -> DNA.cancer
   PS.SM.mat = data.frame(matrix(data = 0,nrow = length(unique(DNA.cancer$PATIENT_ID)), 
                                 ncol = length(unique(RMAF.SM$HUGO_SYMBOL))),
@@ -335,44 +356,40 @@ for (cancer in datasets){
   res = rbind(res,as.data.frame(res.aux))
 }
 
-write.csv(res,paste(output.dir,'AllDataSets/','SM.Chi.Test.Propensity.csv',sep = ''),row.names = F)
+write.csv(res,paste(output.dir,'AllDataSets/','SM.Chi.Test.Propensity.KIRC.csv',sep = ''),row.names = F)
 
 
 ###Do p53 interactors tests
 res$z.score = sign(res$coef)*sqrt(res$chisq)
-res$TP53.INT.HIGH = 'No'
-res[which(res$feature%in%p53.high),'TP53.INT.HIGH'] = 'Yes'
-res$TP53.INT.MED = 'No'
-res[which(res$feature%in%p53.med),'TP53.INT.MED'] = 'Yes'
 res$TP53.INT.LOW = 'No'
 res[which(res$feature%in%p53.low),'TP53.INT.LOW'] = 'Yes'
 test.tbl = NULL
 
 
-for (cancer in c('ALL',datasets)){
+for (cancer in c('ALL')){
   tmp = filter(res,DATASET==cancer)
-  test.high = t.test(tmp$z.score~tmp$TP53.INT.HIGH)
-  test.med =  t.test(tmp$z.score~tmp$TP53.INT.MED)
-  test.low =  t.test(tmp$z.score~tmp$TP53.INT.LOW)
+  #test.high = t.test(tmp$z.score~tmp$TP53.INT.HIGH)
+  #test.med =  t.test(tmp$z.score~tmp$TP53.INT.MED)
+  test.low =  wilcox.test(tmp$z.score~tmp$TP53.INT.LOW)
   if (is.null(test.tbl)){
-    test.tbl = data.frame(cancer,test.high$statistic,test.high$p.value,'High.conf')
+    test.tbl = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')
     colnames(test.tbl) = c("DATASET",'t-statistic','p-value','Interactors')
   }
   else{
-    test.tmp = data.frame(cancer,test.high$statistic,test.high$p.value,'High.conf')
+    test.tmp = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')
     colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
     test.tbl = rbind(test.tbl,test.tmp)
   }
   
-  test.tmp = data.frame(cancer,test.med$statistic,test.med$p.value,'Med.conf')
-  colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
-  test.tbl = rbind(test.tbl,test.tmp)
-  test.tmp = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')
-  colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
-  test.tbl = rbind(test.tbl,test.tmp)
+  # test.tmp = data.frame(cancer,test.med$statistic,test.med$p.value,'Med.conf')
+  # colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
+  # test.tbl = rbind(test.tbl,test.tmp)
+  # test.tmp = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')
+  # colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
+  # test.tbl = rbind(test.tbl,test.tmp)
   
 }
-write.csv(test.tbl,paste(output.dir,'AllDataSets/','p53.int.SM.t.test.csv',sep = ''),row.names = F)
+write.csv(test.tbl,paste(output.dir,'AllDataSets/','p53.int.SM.wilcox.test.csv',sep = ''),row.names = F)
 
 
 ####Plot Density of Chi-squares ##############
@@ -427,9 +444,15 @@ for(g in colnames(PS.EM.mat)){
   res[which(res$feature==g),'expressed.mutations.males'] = em.male
   
 }
+
+
 for (cancer in datasets){
   print(cancer)
+  ###Filter for Cancer type and genes with at least 10 muts
   RMAF %>% filter(EM.RMAF==1,CANCER_TYPE==cancer) -> RMAF.EM
+  RMAF.EM %>% group_by(HUGO_SYMBOL,EM.RMAF) %>% dplyr::summarise(EM.SUM=sum(EM.RMAF)) %>% 
+    filter(EM.SUM>=1) -> aux
+  RMAF.EM %>% filter(HUGO_SYMBOL %in% aux$HUGO_SYMBOL) -> RMAF.EM
   DNA.VAF %>% filter(CANCER_TYPE==cancer) -> DNA.cancer
   PS.EM.mat = data.frame(matrix(data = 0,nrow = length(unique(DNA.cancer$PATIENT_ID)), 
                                 ncol = length(unique(RMAF.EM$HUGO_SYMBOL))),
@@ -442,7 +465,9 @@ for (cancer in datasets){
   clinical.data %>% filter(CANCER_TYPE==cancer) -> clinical.cancer
   annot = clinical.cancer[which(clinical.cancer$PATIENT_ID%in%rownames(PS.EM.mat)),unique(c('PATIENT_ID',cf,cfd))]
   keep = rownames(PS.EM.mat)%in%clinical.cancer$PATIENT_ID
+  PS.EM.mat$PATIENT_ID = rownames(PS.EM.mat)
   PS.EM.mat = PS.EM.mat[keep,]
+  PS.EM.mat$PATIENT_ID=NULL
   res.aux = DoStatTest(clinical.data = annot,molecular.data = PS.EM.mat,default.confounding.factors = cfd, extra.cofounding.factors = cf)
   res.aux$DATASET = cancer
   res.aux = as.data.frame(res.aux)
@@ -456,9 +481,9 @@ for (cancer in datasets){
   res.aux$expressed.mutations.females = 0
   res.aux$expressed.mutations.males = 0
   for(g in colnames(PS.EM.mat)){
-    sm.fem = sum(PS.EM.mat[which(rownames(PS.EM.mat)%in%filter(clinical.data,GENDER=='female')$PATIENT_ID),g])
-    sm.male = sum(PS.EM.mat[which(rownames(PS.EM.mat)%in%filter(clinical.data,GENDER=='male')$PATIENT_ID),g])
-    res.aux[which(res.aux$feature==g),'expressed.mutations'] = paste(sm.male,'M',":","F",sm.fem)
+    em.fem = sum(PS.EM.mat[which(rownames(PS.EM.mat)%in%filter(clinical.data,GENDER=='female')$PATIENT_ID),g])
+    em.male = sum(PS.EM.mat[which(rownames(PS.EM.mat)%in%filter(clinical.data,GENDER=='male')$PATIENT_ID),g])
+    res.aux[which(res.aux$feature==g),'expressed.mutations'] = paste(em.male,'M',":","F",em.fem)
     res.aux[which(res.aux$feature==g),'expressed.mutations.females'] = em.fem
     res.aux[which(res.aux$feature==g),'expressed.mutations.males'] = em.male
   }
@@ -468,44 +493,55 @@ for (cancer in datasets){
   
 }
 
-write.csv(res,paste(output.dir,'AllDataSets/','EM.Chi.Test.Propensity.csv',sep = ''),row.names = F)
+write.csv(res,paste(output.dir,'AllDataSets/','EM.Chi.Test.Propensity.KIRC.csv',sep = ''),row.names = F)
 
 
 ###Do p53 interactors tests
+###Do p53 interactors tests
 res$z.score = sign(res$coef)*sqrt(res$chisq)
-res$TP53.INT.HIGH = 'No'
-res[which(res$feature%in%p53.high),'TP53.INT.HIGH'] = 'Yes'
-res$TP53.INT.MED = 'No'
-res[which(res$feature%in%p53.med),'TP53.INT.MED'] = 'Yes'
 res$TP53.INT.LOW = 'No'
 res[which(res$feature%in%p53.low),'TP53.INT.LOW'] = 'Yes'
 test.tbl = NULL
 
 
-for (cancer in c('ALL')){
+
+for (cancer in c('ALL',datasets)){
   tmp = filter(res,DATASET==cancer)
-  test.high = t.test(tmp$z.score~tmp$TP53.INT.HIGH)
-  test.med =  t.test(tmp$z.score~tmp$TP53.INT.MED)
-  test.low =  t.test(tmp$z.score~tmp$TP53.INT.LOW)
+  #test.high = t.test(tmp$z.score~tmp$TP53.INT.HIGH)
+  #test.med =  t.test(tmp$z.score~tmp$TP53.INT.MED)
+  test.low = tryCatch({
+    wilcox.test(tmp$z.score~tmp$TP53.INT.LOW)  
+  }, error = function(e){NA})
+  
   if (is.null(test.tbl)){
-    test.tbl = data.frame(cancer,test.high$statistic,test.high$p.value,'High.conf')
+    if(is.na(test.low)){
+      test.tbl = data.frame(cancer,NA,NA,'Low.conf')
+    }else{
+      test.tbl = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')  
+    }
+    
     colnames(test.tbl) = c("DATASET",'t-statistic','p-value','Interactors')
   }
   else{
-    test.tmp = data.frame(cancer,test.high$statistic,test.high$p.value,'High.conf')
+    if(is.na(test.low)){
+      test.tmp = data.frame(cancer,NA,NA,'low.conf')  
+    }else{
+      test.tmp = data.frame(cancer,test.low$statistic,test.low$p.value,'low.conf')  
+    }
+    
     colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
     test.tbl = rbind(test.tbl,test.tmp)
   }
   
-  test.tmp = data.frame(cancer,test.med$statistic,test.med$p.value,'Med.conf')
-  colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
-  test.tbl = rbind(test.tbl,test.tmp)
-  test.tmp = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')
-  colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
-  test.tbl = rbind(test.tbl,test.tmp)
+  # test.tmp = data.frame(cancer,test.med$statistic,test.med$p.value,'Med.conf')
+  # colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
+  # test.tbl = rbind(test.tbl,test.tmp)
+  # test.tmp = data.frame(cancer,test.low$statistic,test.low$p.value,'Low.conf')
+  # colnames(test.tmp) = c("DATASET",'t-statistic','p-value','Interactors')
+  # test.tbl = rbind(test.tbl,test.tmp)
   
 }
-write.csv(test.tbl,paste(output.dir,'AllDataSets/','p53.int.EM.t.test.csv',sep = ''),row.names = F)
+write.csv(test.tbl,paste(output.dir,'AllDataSets/','p53.int.EM.wilcox.test.csv',sep = ''),row.names = F)
 
 
 

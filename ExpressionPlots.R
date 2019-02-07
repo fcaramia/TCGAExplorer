@@ -2,8 +2,7 @@ rm(list = ls())
 source("ExpressionPlotsFunctions.R")
 #TCGA Expression plots
 #Datasets and directories and variables
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
-#datasets = c("LIHC")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
 input.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 comp.gene.muts = c("TP53")
@@ -18,7 +17,7 @@ other.vars.order = list(list("Normal",'Tumor'))
 
 h.other.var.order = hash(keys=comp.other.vars, values = other.vars.order)
 comp.clinical.vars = c('GENDER')
-signature.file =  "~/Documents/PhD/GenderAnalysis/TP53_interactions/XIST.txt"
+signature.file =  "~/Documents/PhD/GenderAnalysis/TP53_interactions/TP53.list.3.txt"
 ####Read Annotation file####
 gene.annot = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/annotation.all.genes.csv",as.is = T)
 gene.annot = gene.annot[,-1]
@@ -28,7 +27,7 @@ gene.annot =gene.annot[order(gene.annot$Chrm,gene.annot$Entrez.Gene.ID),]
 
 ###Mutations####
 print('Reading Mutations')
-mutations = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.TCGA.curated.mutations.csv", as.is = T)
+mutations = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv", as.is = T)
 mutations$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2", mutations$SAMPLE_ID)
 ###############
 
@@ -133,8 +132,10 @@ for (i in datasets)
   #HACK FOR ONLY ONE CLINICAL VALUE (ex ONLY FEMALES)
   #annot = annot[which(annot$GENDER == 'female'),]
   ##########PLOT##################
-  DoExpressionPlots(annot,i,comp.clinical.vars,comp.other.vars,comp.gene.muts = comp.gene.muts,
-                    h.gene.mut.order,sig.lists, h.other.var.order)
+  DoExpressionPlots(annot = annot,i = i,comp.clinical.vars = comp.clinical.vars,
+                      comp.other.vars = comp.other.vars,comp.gene.muts = comp.gene.muts,
+                    h.gene.mut.order = h.gene.mut.order,sig.lists = sig.lists, 
+                    h.other.var.order = h.other.var.order, post.fix = "_NvWtvMt")
   ################################
   
   ###Add to Total Matrix#####

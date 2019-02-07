@@ -4,16 +4,18 @@ library(ggrepel)
 source('ExpressionPlotsFunctions.R')
 source('PropensityScoresFunctions.R')
 library(gtools)
+
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/AllDataSets/"
-
-
-
-
 #Datasets and directories and variables
-datasets = c('ALL',"ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
+datasets = c('ALL',"ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
 #datasets = c("READ")
 
-RMAF = read.csv(paste(output.dir,'Computed.RMAF.csv',sep = ''))
+RMAF = read.csv(paste(output.dir,'Computed.All.RMAF.csv',sep = ''))
+RMAF$POLYPHEN_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$POLYPHEN)
+RMAF$SIFT_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$SIFT)
+
+P.Coding.X.genes = read.csv("~/Documents/PhD/GenderAnalysis/Genes.Coding.X.csv")
+RMAF %>% filter(ENTREZ_GENE_ID%in%P.Coding.X.genes$entrezgene) -> RMAF
 
 #Clean low reads
 RMAF$SUM = RMAF$REF_COUNT + RMAF$ALT_COUNT
@@ -27,9 +29,29 @@ RMAF$LOGIT.RMAF = logit(x = RMAF$RMAF,min = 0-0.1 , max = 1+0.1)
 #DoDensityPlotGenderRMAF(dat = RMAF,dat.col = 'RMAF',fill.col = 'GENDER',title.txt = 'RMAF')
 #DoDensityPlotGenderRMAF(dat = RMAF,dat.col = 'Z.SCORE',fill.col = 'GENDER',title.txt = 'Z-Scores')
 #Define Expressed Mutation RMAF
-RMAF$EM.RMAF = ifelse(RMAF$RMAF>=0.75,1,0)
-RMAF$SM.RMAF = ifelse(RMAF$RMAF<=0.20,1,0)
+RMAF$EM.RMAF = ifelse(RMAF$RMAF>=0.75,T,F)
+RMAF$SM.RMAF = ifelse(RMAF$RMAF<=0.20,T,F)
 
+#########GENOME WIDE PLOT################
+library(biovizBase)
+XchromCyto <- getIdeogram("hg19", cytobands = TRUE,subchr = 'chrX')
+Xdf = data.frame(XchromCyto, stringsAsFactors = F)
+n = length(levels(as.factor(as.vector(Xdf$name))))
+cols = rainbow(n, s=.6, v=.9)[sample(1:n,n)]
+Xdf$color = cols
+Xdf$offset = rep(c(0,-0.22),20)
+p <- ggplot(RMAF[which(RMAF$CHROM=='X'),],aes(START_POSITION,RMAF)) 
+p +  geom_point(size = 1.5, alpha=0.05) + facet_grid(CANCER_TYPE~GENDER,scales =  'free_x') + 
+  geom_segment(data = Xdf,inherit.aes = F,mapping = aes(x=start,y=-.40, xend = end, yend=-.40,color=name), size=4, show.legend = F) +
+  scale_color_manual(values = Xdf$color) +scale_y_continuous(limits = c(-.70,1.15)) + 
+  geom_text(data = Xdf,inherit.aes = F,show.legend = F,mapping = aes(x=start,y = -.4+offset,label=name),size = 1.75,hjust=-0.1)
+
+###################
+
+####Check deleterious mutations#################
+DoMutNumViolinPlotGenderFacet(data = filter(RMAF,SIFT_DISCRETE=='deleterious'),data.col = "RMAF",fill.col = "GENDER",
+                              facet.col = 'CANCER_TYPE', x.lab = 'gender',y.lab = 'RMAF',
+                              title.txt = 'HIGH IMPACT')
 
 RMAF %>% group_by(GENDER,EM.RMAF) %>% dplyr::summarise(N.EM=n()) -> EM.NUMS
 RMAF %>% group_by(GENDER,SM.RMAF) %>% dplyr::summarise(N.SM=n()) -> SM.NUMS
@@ -101,6 +123,38 @@ RMAF$POINT_COL = 'black'
 RMAF[which(RMAF$HUGO_SYMBOL%in%p53.low),'POINT_COL'] = 'red'
 
 
+####Raw RMAF Tests
+res = lm(RMAF$LOGIT.RMAF~RMAF$GENDER + RMAF$CANCER_TYPE)
+
+quantile(RMAF[which(RMAF$GENDER=='male'),"LOGIT.RMAF"])
+quantile(RMAF[which(RMAF$GENDER=='female'),"LOGIT.RMAF"])
+quantile(RMAF[which(RMAF$GENDER=='male'),"RMAF"])
+quantile(RMAF[which(RMAF$GENDER=='female'),"RMAF"])
+
+
+s = summary(res)
+coeff = s$coefficients[2,1]
+p.val = s$coefficients[2,4]
+conf.int = confint(res)
+exome.test = data.frame(DATASET='ALL',P.Value = p.val,COEFF = coeff, CI = paste(conf.int[2,1],conf.int[2,2],sep = 'to'))
+
+for (c in datasets[2:13]){
+  RMAF %>% filter(CANCER_TYPE==c) -> muts.c
+  print(c)
+  
+  res = lm(muts.c$LOGIT.RMAF~muts.c$GENDER) 
+            
+  s = summary(res)
+  coeff = s$coefficients[2,1]
+  p.val = s$coefficients[2,4]
+  conf.int = confint(res)
+  c.test = data.frame(DATASET=c,P.Value = p.val,COEFF = coeff, CI = paste(conf.int[2,1],conf.int[2,2],sep = 'to'))
+  exome.test = rbind(exome.test,c.test)
+}
+
+write.csv(exome.test,paste(output.dir,"RMAF.tests.csv",sep = ''))
+
+########
 
 ##Do Plots##
 
@@ -120,13 +174,17 @@ DoMutNumViolinPlotGenderFacet(data = DNA.VAF,data.col = "VAF",fill.col = 'GENDER
                               facet.col = 'CANCER_TYPE',x.lab = 'GENDER', y.lab = 'VAF',title.txt = 'VAF by Gender')
 
 
+tiff(paste(output.dir,"/MutationPlots/",'Violin.RAMF.Gender.tiff',sep = ""),width = 800, height = 800,res = 125)
 
-DoMutNumViolinPlotGender(data = RMAF,data.col = "RMAF",fill.col = 'GENDER', show.points = T, points.alpha = 0.050,
+DoMutNumViolinPlotGender(data = RMAF,data.col = "RMAF",fill.col = 'GENDER', show.points = F, points.alpha = 0.5,
                          x.lab = 'GENDER', y.lab = 'RMAF',title.txt = 'RMAF by Gender' )
+dev.off()
+
+tiff(paste(output.dir,"/MutationPlots/",'Violin.RAMF.Gender.Facet.tiff',sep = ""),width = 1200, height = 800,res = 125)
 
 DoMutNumViolinPlotGenderFacet(data = RMAF,data.col = "RMAF",fill.col = 'GENDER',
                               facet.col = 'CANCER_TYPE',x.lab = 'GENDER', y.lab = 'RMAF',title.txt = 'RMAF by Gender')
-
+dev.off()
 
 ####Log Ratio plots
 #SM
@@ -148,24 +206,33 @@ sm.table$text.p53 = ifelse(sm.table$pvalue<=0.05&sm.table$p53.int=='Yes',as.vect
 sm.table$sig = ifelse(sm.table$pvalue<=0.05,'yes','no')
 library(ggplot2)
 for (d in datasets){
-
-  
   sm.table$p53.int = 'No'
-  sm.table[which(sm.table$feature%in%p53.high),'p53.int'] = 'Yes'
+  sm.table[which(sm.table$feature%in%p53.low),'p53.int'] = 'Yes'
   sm.table$feature.show = ifelse(sm.table$pvalue<=0.05&sm.table$p53.int=='Yes',as.vector(sm.table$feature),'')
   
   pos <- position_jitter(width = 0.5,seed = 1)
-  p <- ggplot(sm.table[which(sm.table$DATASET==d),],aes(x=log2ratio,y = -log10(pvalue),size=total.silent.mut,colour=p53.int,shape=sig))
-  tiff(filename = paste(output.dir,log2ratiodir,d,'.','SM.p53HIGH.log2ratio.pval.NO.LABEL.tiff',sep = ''),width = 2400,height = 1600,res = 200)
+  p <- ggplot(sm.table[which(sm.table$DATASET==d),],
+              aes(x=log2ratio,y = -log10(pvalue),size=total.silent.mut,colour=p53.int,shape=sig))
+  tiff(filename = paste(output.dir,log2ratiodir,d,'.','SM.p53LOW.log2ratio.pval.LABEL.tiff',sep = ''),
+       width = 2400,height = 1600,res = 200)
   print(
   p + 
-    geom_point(position = pos) +
-    coord_cartesian(xlim=c(-4,4)) + 
-    theme(legend.title = element_text(size=18), legend.text = element_text(size=18)) 
-  # +
-  #   geom_label_repel(position = pos,aes(fill = p53.int,label=feature.show ),
-  #                   size = 2, fontface='bold',color="white",box.padding = 0.35,
-  #                    segment.colour = "grey50")
+    geom_point(position = pos) + scale_color_manual(values=c('gold3','blue')) + 
+    scale_size_continuous(name = 'No. SM',breaks = c(10,20,50,75,100,150)) + 
+    scale_fill_manual(values=c('gold3','blue')) +
+    coord_cartesian(xlim=c(-4,4.2)) + 
+    theme(legend.title = element_text(size=12), legend.text = element_text(size=12))
+  
+  +
+    geom_label_repel(position = pos,aes(fill = p53.int,label=feature.show ),
+                     size = 2, fontface='bold',color="white",box.padding = 0.35,
+                     segment.colour = "grey50",show.legend = F)
+   
+   + guides(shape = guide_legend(override.aes = list(size =5)),
+            colour = guide_legend(override.aes = list(size =5)))
+            
+   
+  
   )
   dev.off()
     
@@ -191,29 +258,39 @@ em.table[which(em.table$feature%in%p53.low),'p53.int'] = 'Yes'
 em.table$text.p53 = ifelse(em.table$pvalue<=0.05&em.table$p53.int=='Yes',as.vector(em.table$feature),'')
 em.table$sig = ifelse(em.table$pvalue<=0.05,'yes','no')
 em.table$feature.show = ifelse(em.table$pvalue<=0.05&em.table$p53.int=='Yes',as.vector(em.table$feature),'')
-library(ggplot2)
+
 for (d in datasets){
-  
-  
   em.table$p53.int = 'No'
   em.table[which(em.table$feature%in%p53.low),'p53.int'] = 'Yes'
+  em.table$feature.show = ifelse(em.table$pvalue<=0.05&em.table$p53.int=='Yes',as.vector(em.table$feature),'')
+  
   pos <- position_jitter(width = 0.5,seed = 1)
-  p <- ggplot(em.table[which(em.table$DATASET==d),],aes(x=log2ratio,y = -log10(pvalue),size=total.expressed.mut,colour=p53.int,shape=sig))
-  tiff(filename = paste(output.dir,log2ratiodir,d,'.','EM.p53LOW.log2ratio.pval.LABEL.tiff',sep = ''),width = 2400,height = 1600,res = 200)
+  p <- ggplot(em.table[which(em.table$DATASET==d),],
+              aes(x=log2ratio,y = -log10(pvalue),size=total.expressed.mut,colour=p53.int,shape=sig))
+  tiff(filename = paste(output.dir,log2ratiodir,d,'.','EM.p53LOW.log2ratio.pval.NOLABEL.tiff',sep = ''),
+       width = 2400,height = 1600,res = 200)
   print(
-    p + geom_point(position = pos) +
-      geom_jitter(position = pos) +
-      coord_cartesian(xlim=c(-4,4)) + 
-      theme(legend.title = element_text(size=18), legend.text = element_text(size=18)) 
+    p + 
+      geom_point(position = pos) + scale_color_manual(values=c('gold3','blue')) + 
+      scale_size_continuous(name = 'No. EM',breaks = c(10,20,50,75,100,150)) + 
+      scale_fill_manual(values=c('gold3','blue')) +
+      coord_cartesian(xlim=c(-4,4.2)) + 
+      theme(legend.title = element_text(size=12), legend.text = element_text(size=12))
+    
     +
-     geom_label_repel(position = pos,aes(log2ratio,-log10(pvalue),fill = p53.int,label=feature.show ),
-                     size = 2, fontface='bold',color="white",box.padding = 0.35,
-                     segment.colour = "grey50")
+      geom_label_repel(position = pos,aes(fill = p53.int,label=feature.show ),
+                       size = 2, fontface='bold',color="white",box.padding = 0.35,
+                       segment.colour = "grey50",show.legend = F)
+
+    + guides(shape = guide_legend(override.aes = list(size =5)),
+             colour = guide_legend(override.aes = list(size =5)))
+    
+    
+    
   )
   dev.off()
   
 }
-
 
 #DNAmuts
 sm.table = read.csv(paste(output.dir,'DNA.muts.Chi.Test.Propensity.csv',sep = ''))

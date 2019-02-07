@@ -4,7 +4,7 @@ library(ggplot2)
 library(hash)
 library(limma)
 library(edgeR)
-library(NanoStringNorm)
+#library(NanoStringNorm)
 library(dplyr)
 library(lazyeval)
 
@@ -101,7 +101,7 @@ DoMutNumPlotGenderFacet = function(data,data.col,fill.col,facet.col ,x.lab,y.lab
     geom_boxplot(outlier.colour = NA) + 
     #geom_point(position = position_jitter(width = 0.2),show.legend = F, aes_string(shape = fill.col),alpha = 0.2) +
     labs(x=x.lab,y=y.lab) + ggtitle(label = title.txt) + facet_wrap(fw) +
-    scale_fill_manual(values=c("pink1", "lightskyblue")) + theme_minimal() + coord_cartesian(ylim=c(0,5))
+    scale_fill_manual(values=c("pink1", "lightskyblue")) + theme_minimal() 
   )
   
 }
@@ -119,7 +119,7 @@ DoMutNumViolinPlotGenderFacet = function(data,data.col,fill.col,facet.col ,x.lab
   if (show.points == TRUE){
     
     plot = plot + geom_point(position = position_jitter(width = 0.2),show.legend = F, 
-                             aes_string(shape = fill.col),alpha = 0.1) 
+                             aes_string(shape = fill.col),alpha = 0.05) 
     
   }
   
@@ -372,7 +372,7 @@ DoMultMDSPlots <- function(norm.data, dir, tittle, annot, color.cols){
 }
 
 DoExpressionPlots <- function(annot,i,comp.clinical.vars,comp.other.vars,comp.gene.muts,
-                              h.gene.mut.order,sig.lists,h.other.var.order){
+                              h.gene.mut.order,sig.lists,h.other.var.order, post.fix = ""){
   
   for (c in comp.clinical.vars){
     annot.aux = annot
@@ -384,7 +384,7 @@ DoExpressionPlots <- function(annot,i,comp.clinical.vars,comp.other.vars,comp.ge
       for (s in rownames(sig.lists)){
         sig = as.character(sig.lists[s,'SIGNATURE'])
         #Plot signature alone
-        plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',sig,'.',g2,'.',c,sep = "") 
+        plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',sig,'.',g2,'.',c,post.fix,sep = "") 
         
         DoMultBoxPlot(plot.data = annot, cols.merge = c(c,g2), cols.to.wrap = sig,
                       box.order = plot.order, fill.color.col = c,ylab = 'Log2 RNA counts',
@@ -406,7 +406,7 @@ DoExpressionPlots <- function(annot,i,comp.clinical.vars,comp.other.vars,comp.ge
         #Plot genes individually
         for (gs in genes){
           if (gs%in%colnames(annot)){
-            plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',gs,'.',g2,'.',c,sep = "") 
+            plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',gs,'.',g2,'.',c,post.fix,sep = "") 
             DoMultBoxPlot(plot.data = annot, cols.merge = c(c,g2), cols.to.wrap = gs,
                           box.order = plot.order, fill.color.col = c,ylab = 'Log2 RNA counts',
                           xlab = g2,box.title = paste(i,gs,sep = '-'), plot.tittle, 'JPEG')
@@ -424,7 +424,7 @@ DoExpressionPlots <- function(annot,i,comp.clinical.vars,comp.other.vars,comp.ge
       for (s in rownames(sig.lists)){
         #Plot signature alone
         sig = as.character(sig.lists[s,'SIGNATURE'])
-        plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',sig,'.',v,'.',c,sep = "") 
+        plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',sig,'.',v,'.',c,post.fix,sep = "") 
         DoMultBoxPlot(plot.data = annot, cols.merge = c(c,v), cols.to.wrap = sig,
                       box.order = plot.order, fill.color.col = c,ylab = 'Log2 RNA counts',
                       xlab = paste(v),box.title = paste(i,sig,sep = '-'),plot.tittle, 'JPEG')
@@ -445,7 +445,7 @@ DoExpressionPlots <- function(annot,i,comp.clinical.vars,comp.other.vars,comp.ge
         #Plot genes individually
         for (gs in genes){
           if (gs%in%colnames(annot)){
-            plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',gs,'.',v,'.',c,sep = "") 
+            plot.tittle = paste(output.dir,i,"/ExpressionPlots/",i,'.',gs,'.',v,'.',c,post.fix,sep = "") 
             DoMultBoxPlot(plot.data = annot, cols.merge = c(c,v), cols.to.wrap = gs,
                           box.order = plot.order, fill.color.col = c,ylab = 'Log2 RNA counts',
                           xlab = paste(v),box.title = paste(i,gs,sep = '-'), plot.tittle, 'JPEG')
@@ -461,23 +461,24 @@ DoExpressionPlots <- function(annot,i,comp.clinical.vars,comp.other.vars,comp.ge
   }
 }
 
-DoCPMNorm <- function(raw.counts){
+DoCPMNorm <- function(raw.counts, pop.genes=.20){
   
   ###Filter low read genes####
   L = min(colSums(raw.counts)) # min library size
-  P = round(ncol(raw.counts)*0.50) #20% population
+  P = round(ncol(raw.counts)*pop.genes) #20% population
   dge = DGEList(counts = raw.counts)
   keep <- rowSums(cpm(dge) > 5/L*1e6) > P
   dge = DGEList(dge[keep,,keep.lib.sizes=F]) 
   ###########################
   ###Normalise####
   dge = calcNormFactors(dge)
-  logCPM = cpm(dge,prior.count = 3, log = T)
+  logCPM = cpm(y=dge,prior.count = 3, log = T)
   ###############
   
   return(logCPM)
   
 }
+
 
 NormaliseVoom <- function(raw.counts, design) {
   if (is.null(raw.counts)) {

@@ -8,21 +8,31 @@ library(grid)
 library(xlsx)
 library(combinat)
 source("ExpressionPlotsFunctions.R")
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
+demo = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.curated.clinical.csv", as.is = T)
+demo$PATIENT_ID = toupper(demo$PATIENT_ID)
+
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
 #datasets = c("LGG",'ESCA')
-vars = list('Normal','Wt.TP53','Mt.TP53')
-vars = list('Normal','Tumor')
+#vars = list('Normal','Wt.TP53','Mt.TP53')
+#vars = list('Normal','Tumor')
+vars = list('Tumor')
+
 pivots = list("female",'male')
 input.dir = "/home/fcaramia/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 output.dir = "/home/fcaramia/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
-signature.file =  "~/Documents/PhD/GenderAnalysis/TP53_interactions/XIST.txt"
+signature.file =  "~/Documents/PhD/GenderAnalysis/TP53_interactions/TP53.list.3.txt"
 sig.lists = read.delim(signature.file, sep = " ")
 
-t.order = c('F normal','M normal','F wt TP53','M wt TP53','F mt TP53','M mt TP53')
-t.order = c('F normal','M normal','F Tumour','M Tumour')
+#t.order = c('F normal','M normal','F wt TP53','M wt TP53','F mt TP53','M mt TP53')
+#t.order = c('F wt TP53','M wt TP53','F mt TP53','M mt TP53')
+#t.order = c('F normal','M normal','F Tumour','M Tumour')
+t.order = c('F Tumour','M Tumour')
 
-ori.names = c('Normal.female','Normal.male','Wt.TP53.female','Wt.TP53.male','Mt.TP53.female','Mt.TP53.male')
+#ori.names = c('Normal.female','Normal.male','Wt.TP53.female','Wt.TP53.male','Mt.TP53.female','Mt.TP53.male')
+#ori.names = c('Wt.TP53.female','Wt.TP53.male','Mt.TP53.female','Mt.TP53.male')
 ori.names = c('Normal.female','Normal.male','Tumor.female','Tumor.male')
+ori.names = c('Tumor.female','Tumor.male')
+
 
 h.table.names = hash(keys=ori.names, values = t.order)
 
@@ -79,18 +89,18 @@ for (cancer in datasets)
         
         
         diffexp %>% 
-          select_('GENE.SYMBOL','AveExpr','logFC','adj.P.Val') %>%
+          select_('GENE.SYMBOL','logFC','adj.P.Val') %>%
           filter(GENE.SYMBOL%in%genes) -> cmatrix
         
         if (is.null(cancer.mat)){
           colnames(cmatrix) = c('GENE.SYMBOL',
-                                   lapply(X= colnames(cmatrix[,2:4]),
+                                   lapply(X= colnames(cmatrix[,2:3]),
                                           FUN = function(x) return(paste(x,':',m,sep = ''))))
           cancer.mat = cmatrix
          
         }else{
           colnames(cmatrix) = c('GENE.SYMBOL',
-                                lapply(X= colnames(cmatrix[,2:4]),
+                                lapply(X= colnames(cmatrix[,2:3]),
                                        FUN = function(x) return(paste(x,':',m,sep = ''))))
           cmatrix %>% 
             left_join(cancer.mat, by = c("GENE.SYMBOL")) -> cancer.mat
@@ -102,6 +112,21 @@ for (cancer in datasets)
   clns = colnames(cancer.mat)
   cancer.mat$DATA.SET = cancer
   cancer.mat = cancer.mat[,c('DATA.SET',clns)]
+  
+  ##Add numbers
+  norm.counts = read.csv(paste(input.dir,cancer,'/Normalisation/Norm.Log.Counts.csv',sep = ""), as.is = T)
+  rownames(norm.counts) = norm.counts[,1]
+  norm.counts = norm.counts[,-1]
+  
+  PATIENT_IDs = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4}).*","\\2", colnames(norm.counts))
+  PATIENT_GENDER = demo[which(demo$PATIENT_ID%in%PATIENT_IDs),'GENDER']
+  
+  gt = table(PATIENT_GENDER)
+  nf = gt['female']
+  nm = gt['male']
+  cancer.mat$'Females - Males' = paste(nf,nm,sep=' - ') 
+  
+  
   #write.csv(cancer.mat,paste(output.dir,cancer,'/CombinedExpressionTable/',cancer,'.csv',sep = ''),row.names = F)
   
   # if(file.exists(paste(output.dir,'CombinedExpressionTable.xlsx',sep = ''))){
@@ -139,7 +164,7 @@ for (cancer in datasets)
     colnames(pic) = sapply(X =colnames(pic),FUN = function(x) return(h.table.names[[x]]))
     rownames(pic) = sapply(X =rownames(pic),FUN = function(x) return(h.table.names[[x]]))
     tt1 = ttheme_minimal(rowhead = list(fg_params=list(fontface=c('bold'))))
-    jpeg(file=paste(output.dir,cancer,'/PValTables/',g,'_T.jpeg',sep = ""),
+    jpeg(file=paste(output.dir,cancer,'/PValTables/',g,'_WtvMt.jpeg',sep = ""),
          width = 1500, height = 350, units = "px", res=170)
     sig_ind = Find_element_less_than(data.matrix(pic),25)
     gtab = tableGrob(pic)
@@ -164,5 +189,17 @@ for (cancer in datasets)
   
 }
 
-write.table(exp.mat,paste(output.dir,'DiffExpressionTable.txt',sep = ''),row.names = F ,sep = '\t', quote = FALSE)
+
+#####special case
+genomes.1000 = read.csv("/home/fcaramia/Documents/PhD/GenderAnalysis/1000.Genomes.Analysis/Output/DifferentialExpression/female-male.csv")
+genomes.1000 = genomes.1000[which(genomes.1000$SYMBOL%in%genes),c('SYMBOL','logFC','adj.P.Val')]
+genomes.1000$DATA.SET = '1000 Genomes'
+genomes.1000$"Females:Males" = '333 - 327'
+genomes.1000 = genomes.1000[,c('DATA.SET','SYMBOL','logFC','adj.P.Val','Females:Males')]
+
+colnames(genomes.1000)  =  colnames(exp.mat)
+
+res = rbind(exp.mat,genomes.1000)
+
+write.table(res,paste(output.dir,'DiffExpressionTable1000GenomesAndTumors.tsv',sep = ''),row.names = F ,sep = '\t', quote = FALSE)
 

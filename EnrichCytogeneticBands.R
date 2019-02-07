@@ -40,6 +40,16 @@ mart.hs <- useMart("ensembl", "hsapiens_gene_ensembl")
 res = getBM(attributes = c("hgnc_symbol", "entrezgene","transcript_length","band","start_position","end_position",
                            "transcript_start","transcript_end","chromosome_name"), filters = "hgnc_symbol", values = all.g, mart = mart.hs)
 
+
+#Get protein coding genes in X
+res = getBM(attributes = c("hgnc_symbol", "entrezgene","chromosome_name",'gene_biotype'), 
+            filters = "chromosome_name", values = 'X', mart = mart.hs)
+
+res %>% filter(gene_biotype=='protein_coding') -> res
+
+write.csv(res,"~/Documents/PhD/GenderAnalysis/Genes.Coding.X.csv",row.names = F)
+
+
 res %>% left_join(cytobands.genes,by = c("hgnc_symbol"="HUGO_SYMBOL")) -> res.cyto
 
 #Do summaries

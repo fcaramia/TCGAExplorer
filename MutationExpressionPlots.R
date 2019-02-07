@@ -2,22 +2,23 @@ rm(list = ls())
 library(dplyr)
 library(ggplot2)
 library(gtools)
+library(data.table)
 source('ExpressionPlotsFunctions.R')
 #TCGA Expression plots
 #Datasets and directories and variables
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 
 ##RMAF DATA
-RMAF = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.V2.csv", as.is=T)
+RMAF = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.V5.csv")
 RMAF$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2", RMAF$SAMPLE)
 
-signature.file =  "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TP53.lists.2.txt"
+signature.file =  "~/Documents/PhD/GenderAnalysis/TP53_interactions/Candidates.2018.03.01.csv"
 ###Read Signatures####
 sig.lists = read.delim(signature.file, sep = " ")
 
 ####Read mutations
-mutations = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.TCGA.curated.mutations.csv", as.is = T)
+mutations = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv")
 mutations$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2", mutations$SAMPLE_ID)
 
 

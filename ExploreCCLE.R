@@ -4,6 +4,7 @@ library(reshape)
 library(ggplot2)
 library(dplyr)
 library(survival)
+library(genefu)
 source("~/Documents/Work/analysis/RNA.Analysis/NormalisationFunctions.R")
 ###Read Achilles data####
 ataris = fread("~/Documents/PhD/Data/CCLE/Achilles/Achilles_QC_v2.4.3.rnai.Gs.gct")
@@ -214,3 +215,12 @@ p + geom_boxplot()
 
 summary(dat[which(dat$P53.LOW==T&!is.na(dat$TISSUE.COSMIC)),'TISSUE.COSMIC'])
 
+
+
+####Plot just HUWE1
+dat.plot = dat[which(!is.na(dat$CCLE)&abs(dat$value)>=0&dat$CCLE>=0&dat$Description=='HUWE1'),]
+p <- ggplot(data = dat.plot, aes(y = value , color = P53.MUT))
+p + geom_boxplot() 
+
+
+dim(dat.plot)

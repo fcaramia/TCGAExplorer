@@ -1,12 +1,16 @@
 library(dplyr)
+library(data.table)
+library(AnnotationHub)
 rm(list = ls())
-muts = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.raw.TCGA.curated.mutations.csv")
+muts = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.raw.TCGA.curated.mutations.csv")
 
 
 ##Change GDC mutations from hg38 to hg19 
 library(rtracklayer)
-path = system.file(package="liftOver", "extdata", "hg38ToHg19.over.chain")
-hg38Tohg19 = import.chain(path)
+
+ah = AnnotationHub()
+chainfiles <- query(ah , c("hg38", "hg19", "chainfile"))
+hg38Tohg19 <- chainfiles[['AH14108']]
 range=GRanges(seqnames=paste('chr',muts$CHROMOSOME,sep = ''),ranges=IRanges(start=muts$START_POSITION,end=muts$END_POSITION),MUTATION_ID = muts$MUTATION_ID)
 
 ch = liftOver(range,hg38Tohg19)
@@ -67,6 +71,7 @@ rbind(muts,firehose.not.in.muts[,colnames(muts)]) -> all.muts
 write.csv(all.muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv", row.names = F)
 
 
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
+datasets = c('KIRC')
 all.muts %>% filter(CHROMOSOME=='X',CANCER_TYPE%in%datasets) -> muts
-write.csv(muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.ExMutv3.csv", row.names = F)
+write.csv(muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.ExMutv4.KIRC.csv", row.names = F)

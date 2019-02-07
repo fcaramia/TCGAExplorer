@@ -3,8 +3,8 @@ rm(list = ls())
 source("ExpressionPlotsFunctions.R")
 #TCGA Expression
 #Read Files
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
-datasets = c("BRCA")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
+datasets = c("LUAD")
 input.dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Expression.Data/"
 output.dir = "~/Documents/Work/Data/"
 mds.contrast = c('GENDER','SAMPLE_TYPE',"TP53_STATUS")
