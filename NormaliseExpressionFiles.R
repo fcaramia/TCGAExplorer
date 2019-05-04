@@ -1,18 +1,21 @@
 rm(list = ls())
+library(data.table)
 ####Curate Uncompressed expression file from FireHose########
 source("ExpressionPlotsFunctions.R")
 #TCGA Expression
 #Read Files
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
-datasets = c("LUAD")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","LUAD",'OV','BRCA')
+datasets = c("SKCM")
 input.dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Expression.Data/"
-output.dir = "~/Documents/Work/Data/"
+output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 mds.contrast = c('GENDER','SAMPLE_TYPE',"TP53_STATUS")
 #################
 ###Clinical Data####
-demo = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.curated.clinical.csv", as.is = T)
+demo = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.curated.clinical.csv")
 demo$PATIENT_ID = toupper(demo$PATIENT_ID)
-DNA.MUTS = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv", as.is=T)
+DNA.MUTS = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv")
+filter.out = c("Silent",'Intron','IGR',"In_Frame_Ins" ,"In_Frame_Del", "lincRNA" )
+filter(DNA.MUTS,!(VARIANT_CLASSIFICATION%in%filter.out)) -> DNA.MUTS
 DNA.MUTS %>% filter(HUGO_SYMBOL == 'TP53') -> tp53.mutants
 tp53.mutants = unique(tp53.mutants$PATIENT_ID)
 demo$TP53_STATUS = ifelse(demo$PATIENT_ID%in%tp53.mutants,'Mt','Wt')
@@ -26,8 +29,8 @@ all.raw.counts = NULL
 ###Total Results directory####
 dir.create(paste(output.dir,'AllDataSets/',sep = ""),showWarnings = F)
 ###Housekeeping Genes#####
-hk.genes = c("C1orf43","CHMP2A","EMC7","GPI","PSMB2","PSMB4","RAB7A","REEP5","SNRPD3","VCP","VPS29")
-p53.reg = c('DKC1','FOXP3','HDAC8','LAS1L','TAF1','YY2','OGT','DDX3X','AMER1','BMX','CUL4B','DDX53','HUWE1','MAGEA2','MCTS1','NOX1','PSMD10','UBE2A','UTP14A','UXT','XIAP','AIFM1','G6PD','CD40LG','IL2RG','SH2D1A','TLR8','AR')
+#hk.genes = c("C1orf43","CHMP2A","EMC7","GPI","PSMB2","PSMB4","RAB7A","REEP5","SNRPD3","VCP","VPS29")
+#p53.reg = c('DKC1','FOXP3','HDAC8','LAS1L','TAF1','YY2','OGT','DDX3X','AMER1','BMX','CUL4B','DDX53','HUWE1','MAGEA2','MCTS1','NOX1','PSMD10','UBE2A','UTP14A','UXT','XIAP','AIFM1','G6PD','CD40LG','IL2RG','SH2D1A','TLR8','AR')
 ####Read Annotation file####
 gene.annot = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/annotation.all.genes.csv",as.is = T)
 gene.annot = gene.annot[,-1]
@@ -43,7 +46,7 @@ for (i in datasets)
   #########################
   
   ###Read Raw counts#####
-  raw.counts = read.csv(paste(input.dir,i,'/RawExpression.csv',sep = ""))
+  raw.counts = data.frame(fread(paste(input.dir,i,'/RawExpression.csv',sep = "")))
   rownames(raw.counts) = raw.counts[,1]
   raw.counts = raw.counts[,-1]
   #########################
@@ -52,7 +55,7 @@ for (i in datasets)
   #########################
   raw.counts = data.matrix(raw.counts)
   ###Normalise#############
-  logCPM = DoCPMNorm(raw.counts)
+  logCPM = DoCPMNorm(raw.counts,pop.genes = .3)
   #########################
   ##Save Norm counts####
   write.csv(logCPM,paste(sep="",output.dir,i,"/Normalisation","/Norm.Log.Counts.csv"))
@@ -63,7 +66,7 @@ for (i in datasets)
   for (j in mds.contrast){
     if (j %in% colnames(demo)){
       cols = colnames(annot)
-      annot <- cbind(annot,demo[match(annot$PATIENT_ID, demo$PATIENT_ID),j]) 
+      annot <- cbind(annot,demo[match(annot$PATIENT_ID, demo$PATIENT_ID),..j]) 
       colnames(annot) = c(cols,j)
     }
   } 
@@ -74,12 +77,12 @@ for (i in datasets)
   )
   ##########################
   ###Do Plots####
-  # DoNormPlots(raw.data = raw.counts, norm.data = logCPM,
-  #             dir = paste(output.dir,i,"/Normalisation", sep ="" ), tittle = i,
-  #             annot = annot, color.cols = mds.contrast)
-  # DoMultMDSPlots(norm.data = logCPM, dir = paste(output.dir,i,"/Normalisation", sep ="" ), tittle = i,
-  #                annot = annot, color.cols = mds.contrast )
-  # ###############
+  DoNormPlots(raw.data = raw.counts, norm.data = logCPM,
+              dir = paste(output.dir,i,"/Normalisation", sep ="" ), tittle = i,
+              annot = annot, color.cols = mds.contrast)
+  DoMultPCAPlots(data = t(logCPM), dir = paste(output.dir,i,"/Normalisation", sep ="" ), title = i,
+                annot = annot, color.cols = mds.contrast )
+  ###############
 
   if (do.all == T){
     if(is.null(all.raw.counts)){

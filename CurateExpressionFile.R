@@ -1,16 +1,16 @@
 ####Curate Uncompressed expression file from FireHose########
-
+library(data.table)
 #TCGA Expression
 #Read Files
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM")
-datasets = c("KIRC","SARC")
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","OV")
+datasets = c("OV")
 
 dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Expression.Data/"
 
 for (i in datasets)
 {
   print(i)
-  aux_data = read.delim(paste(dir,i,'/',i,".rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes__data.data.txt",sep = ""), as.is = T)
+  aux_data = data.table::fread(paste(dir,i,'/',i,".rnaseqv2__illuminahiseq_rnaseqv2__unc_edu__Level_3__RSEM_genes__data.data.txt"))
   aux_data = aux_data[-1,]
   rownames(aux_data) = aux_data[,1]
   aux_data = aux_data[,-1]

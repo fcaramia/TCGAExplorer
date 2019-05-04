@@ -1,9 +1,9 @@
 #TCGA merge mutations curations
 #Read Mutations
 rm(list = ls())
-#datasets = c("ESCA","HNSC","LUSC.FEMALES","LUSC.MALES","BLCA","LIHC","PAAD","READ","SKCM",'LGG',
-#             'COAD.FEMALES',"COAD.MALES","STAD.MALES","STAD.FEMALES",'LUAD')
-#datasets = c('KIRC.FEMALES','KIRC.MALES')
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","PAAD","READ","SKCM",'LGG',
+             'COAD',"STAD",'LUAD','KIRC.FEMALES','KIRC.MALES')
+
 
 dir="~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Mutation.Data/"
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
@@ -14,7 +14,7 @@ for (i in datasets)
   print(i)
   aux_data = read.csv(paste(dir,gsub("(.*)\\..*","\\1",i),"/ExMut.",i,".csv",sep = ""), as.is = T)
   aux_data = unique(aux_data)
-  aux_data$Cancer.Type = gsub("(.*)\\..*","\\1",i)
+  
   #Make colnames consistent
   colnames(aux_data) <- toupper(gsub(pattern=badchars, replacement="_", x=colnames(aux_data)))
   if(is.null(exmut))

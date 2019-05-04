@@ -4,9 +4,10 @@ library(ggplot2)
 library(hash)
 library(limma)
 library(edgeR)
-#library(NanoStringNorm)
+library(NanoStringNorm)
 library(dplyr)
 library(lazyeval)
+library(ggfortify)
 
 Find_element_less_than <- function(table, value){
   inds = which(table <= value,arr.ind = T)
@@ -330,6 +331,63 @@ DoMDSPlot <- function(norm.data, dir, tittle, annot, color.cols){
     legend("topleft", legend=levels(as.factor(annot[,i])), col=levels(as.factor(annot$color)), pch=15)
     
   }
+  
+}
+
+DoMultPCAPlots <- function(data, annot, dir, title, color.cols){
+  pdf(paste(dir,'/PCAPlots.pdf',sep = ''))
+  print('Plot general PCA by variables')
+  pca = prcomp(data)
+  for(c in color.cols){
+    print(
+      autoplot(pca,data = annot, colour = c) +  ggtitle (paste(title,'All Samples'))
+    )
+    
+  }
+  n = length(color.cols)
+  if(n==1){
+    dev.off()
+    return()
+  }
+  print('Plot detailed PCA')
+  for (i in seq(1,n-1)){
+    for (j in seq(i+1,n)){
+      col1 = color.cols[i]
+      col2 = color.cols[j]
+      print(col1)
+      print(col2)
+      for(v in levels(as.factor(annot[,col1]))){
+        samples = as.vector(annot[which(annot[,col1]==v),"SAMPLE_ID"])
+        if(length(samples)<=1){
+          next
+        }
+        samp_annot = annot[which(annot[,col1]==v),]
+        dat = data[samples,]
+        pca = prcomp(dat)
+        print(
+          autoplot(pca,data = samp_annot, colour = col2) +  ggtitle (paste(title,'All',v))
+        )
+        
+      }
+      for(v in levels(as.factor(annot[,col2]))){
+        samples = as.vector(annot[which(annot[,col2]==v),"SAMPLE_ID"])
+        if(length(samples)<=1){
+          next
+        }
+        samp_annot = annot[which(annot[,col2]==v),]
+        dat = data[samples,]
+        pca = prcomp(dat)
+        print(
+          autoplot(pca,data = samp_annot, colour = col1) +  ggtitle (paste(title,'All',v))
+        )
+      }
+
+    }
+  }
+  
+    
+  dev.off()
+  
   
 }
 

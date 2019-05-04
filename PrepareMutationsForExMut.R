@@ -70,8 +70,15 @@ rbind(muts,firehose.not.in.muts[,colnames(muts)]) -> all.muts
 
 write.csv(all.muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv", row.names = F)
 
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'KIRC','OV','BRCA')
+chromosomes = c('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','X','Y')
+all.muts %>% filter(CANCER_TYPE%in%datasets&CHROMOSOME%in%chromosomes) -> muts
 
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
-datasets = c('KIRC')
-all.muts %>% filter(CHROMOSOME=='X',CANCER_TYPE%in%datasets) -> muts
-write.csv(muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.ExMutv4.KIRC.csv", row.names = F)
+muts$CHROMOSOME2 = ifelse(muts$CHROMOSOME == 'X',23,ifelse(muts$CHROMOSOME=='Y',24,muts$CHROMOSOME))
+muts = muts[order(muts$PATIENT_ID,as.numeric(muts$CHROMOSOME2),muts$START_POSITION),]
+muts2 = muts[order(as.numeric(muts$CHROMOSOME2),muts$START_POSITION),]
+muts$CHROMOSOME2 = NULL
+muts2$CHROMOSOME2 = NULL
+write.csv(muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.ExMutv5.AllChromosomes.csv", row.names = F)
+muts2 = muts[order(muts$CHROMOSOME,muts$START_POSITION),]
+write.csv(muts2,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.Filtering.csv", row.names = F)

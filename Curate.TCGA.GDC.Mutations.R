@@ -3,7 +3,7 @@ library(dplyr)
 #TCGA merge mutations curations
 #Read Mutations
 
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'KIRC','LUAD')
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'KIRC','LUAD','BRCA','OV')
 dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/GDC.Merged.Mutations//"
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
 mutations = NULL

@@ -205,11 +205,11 @@ RMAF %>% group_by(HUGO_SYMBOL, PATIENT_ID) %>% dplyr::summarise(s=max(RMAF)) %>%
 RMAF$U_ID = paste(RMAF$HUGO_SYMBOL, RMAF$PATIENT_ID,RMAF$RMAF,sep = '.')
 RMAF %>% filter(U_ID %in% aux$U_ID) -> RMAF
 
-RMAF %>% group_by(HUGO_SYMBOL, PATIENT_ID) %>% dplyr::summarise(s=max(START_POSITION)) %>% 
-  dplyr::mutate(U_ID = paste(HUGO_SYMBOL, PATIENT_ID,s,sep = '.')) -> aux
-
-RMAF$U_ID = paste(RMAF$HUGO_SYMBOL, RMAF$PATIENT_ID,RMAF$START_POSITION,sep = '.')
-RMAF %>% filter(U_ID %in% aux$U_ID) -> RMAF
+# RMAF %>% group_by(HUGO_SYMBOL, PATIENT_ID) %>% dplyr::summarise(s=max(START_POSITION)) %>% 
+#   dplyr::mutate(U_ID = paste(HUGO_SYMBOL, PATIENT_ID,s,sep = '.')) -> aux
+# 
+# RMAF$U_ID = paste(RMAF$HUGO_SYMBOL, RMAF$PATIENT_ID,RMAF$START_POSITION,sep = '.')
+# RMAF %>% filter(U_ID %in% aux$U_ID) -> RMAF
 
 RMAF %>% group_by(HUGO_SYMBOL,EM.RMAF,SM.RMAF) %>% dplyr::summarise(EM.SUM=sum(EM.RMAF),SM.SUM=sum(SM.RMAF)) %>% 
   filter(EM.SUM>=10|SM.SUM>=10) -> aux

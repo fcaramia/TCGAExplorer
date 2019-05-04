@@ -3,6 +3,7 @@ source("ExpressionPlotsFunctions.R")
 #TCGA Expression plots
 #Datasets and directories and variables
 datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
+datasets = c("BRCA")
 input.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 comp.gene.muts = c("TP53")
@@ -84,7 +85,9 @@ for (i in datasets)
                               ifelse(as.integer(annot$SAMPLE_CODE)>=10, 'Normal', 'Tumor'))
   
   #Add Mutants
-  muts.dataset = mutations[which(mutations$CANCER_TYPE == i),]
+  filter.out = c("Silent",'Intron','IGR',"In_Frame_Ins" ,"In_Frame_Del", "lincRNA" )
+  mutations %>% 
+    filter(CANCER_TYPE == i,!(VARIANT_CLASSIFICATION%in%filter.out)) -> muts.dataset
   for (g in comp.gene.muts){
     g2 = paste(g,'_STATUS',sep = '')
     muts.gene = muts.dataset[which(muts.dataset$HUGO_SYMBOL==g),]

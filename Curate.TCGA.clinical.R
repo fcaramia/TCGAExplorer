@@ -1,12 +1,12 @@
 library(dplyr)
 rm(list=ls())
 #Datasets to use
-datasets = c("KIRC","LUAD","SARC","ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
-datasets = c("BRCA")
+datasets = c("KIRC","LUAD","SARC","ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'BRCA','OV')
+
 dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Clinical.Data/"
 data = NULL
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
-key_words = c('status','gender','radiation','metas',"age","race","ethnicity","smoke","cigarette","tobacco","stage","histology","alcohol","score")
+key_words = c('status','gender','radiation','metas',"age","race","ethnicity","smoke","cigarette","tobacco","stage","histology","alcohol","score",'pam50','pam')
 key_words = toupper(key_words)
 cols = NULL
 for (i in datasets)
@@ -50,7 +50,7 @@ for (i in datasets)
   rm(aux_data)
 }
 
-write.csv(data,"~/Documents/Work/Data/TCGA.BRCA.clinical.csv", row.names = F)
+write.csv(data,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.curated.clinical.csv", row.names = F)
 
 # data[,cols] %>%
 #   group_by(GENDER)%>%

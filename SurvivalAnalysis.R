@@ -5,31 +5,47 @@ library(dplyr)
 library(genefu)
 source("~/Documents/Work/Projects/Sherene/Combined_Plotting/survival_functions.R")
 source('PropensityScoresFunctions.R')
+source("ExpressionPlotsFunctions.R")
 
-
-output_dir="~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/SurvivalAnalysis/"
+input.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
+output_dir="~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/SurvivalAnalysis2/"
 if (!file.exists(output_dir)){
   dir.create(file.path(output_dir))
 }
 
 
+adjust.hr = c('age','race','PATHOLOGIC_STAGE','SMOKING_STATUS')
+adjust.hr = NULL
+
 expression = fread("~/Documents/PhD/Data/TCGA_Xena/Expression/EB++AdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena")
 datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'LUAD')
 clinical = read.xlsx("~/Documents/PhD/Data/TCGA_CLINICAL/mmc1.xlsx", sheet = 1)
 clinical = filter(clinical, type%in%datasets)
-clinical$PatientID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2",clinical$bcr_patient_barcode)
-##P53 Interactors
-p53.int = read.csv("~/Documents/PhD/GenderAnalysis/TP53_interactions/Candidates.2018.12.20.full.csv")
-p53.low = as.vector(p53.int[which(p53.int$experimentally_determined_interaction>=0.3),'GeneSymbol'])
-p53.low = as.vector(p53.int[,'GeneSymbol'])
+clinical$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2",clinical$bcr_patient_barcode)
+clinical <- clinical %>% mutate( age = ifelse(age_at_initial_pathologic_diagnosis >=45, "old", "young"))
+demo = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.curated.clinical.csv", as.is = T)
+demo$PATIENT_ID = toupper(demo$PATIENT_ID)
+demo= filter(demo, CANCER_TYPE%in%datasets)
+clinical = full_join(clinical, demo)
 
-####Gene annotation for EntrezGeneID
+
+####Read Annotation file####
 gene.annot = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/annotation.all.genes.csv",as.is = T)
 gene.annot = gene.annot[,-1]
 gene.annot = gene.annot[gene.annot$Chrm!='',]
 gene.annot = gene.annot[order(gene.annot$Chrm,gene.annot$Entrez.Gene.ID),]
+#########################
+
+
+
+##P53 Interactors
+p53.int = read.csv("~/Documents/PhD/GenderAnalysis/TP53_interactions/Candidates.2019.02.01.csv")
+p53.low = as.vector(p53.int[which(p53.int$experimentally_determined_interaction>=0.3),'GeneSymbol'])
+p53.low = as.vector(p53.int[,'GeneSymbol'])
 
 p53.int$EntrezID = gene.annot[match(p53.int$GeneSymbol,gene.annot$Approved.Symbol),'Entrez.Gene.ID']
+
+
 
 #####Filter p53 genes
 expression <- subset(expression, select=which(!duplicated(names(expression)))) 
@@ -39,8 +55,8 @@ expression$sample = NULL
 expression = as.data.frame(t(expression))
 expression$Sample = rownames(expression)
 expression$SampleType = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4})\\-([[:alnum:]]{2})","\\3",rownames(expression))
-expression$PatientID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2",rownames(expression))
-expression = filter(expression,PatientID%in%clinical$PatientID,SampleType!='11')
+expression$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2",rownames(expression))
+expression = filter(expression,PATIENT_ID%in%clinical$PATIENT_ID,SampleType!='11')
 mat = full_join(expression,clinical)
 
 ###Compute signature 
@@ -60,123 +76,354 @@ filter.out = c("Silent",'Intron','IGR',"In_Frame_Ins" ,"In_Frame_Del", "lincRNA"
 filter(DNA.muts,!(VARIANT_CLASSIFICATION%in%filter.out)) -> DNA.muts
 p53.mutants = unique(DNA.muts$PATIENT_ID)
 
-mat$p53.status = ifelse(mat$PatientID%in%p53.mutants,'Mt-p53','Wt-p53')
+mat$TP53.STATUS = ifelse(mat$PATIENT_ID%in%p53.mutants,'Mt-p53','Wt-p53')
 
+
+####Create MAtrix for individual cancer.
+
+expression.list = list()
+for (cancer in datasets){
+  print(cancer)
+  norm.counts = data.matrix(fread(paste(input.dir,cancer,'/Normalisation/Norm.Log.Counts.csv',sep = "")))
+  rownames(norm.counts) = norm.counts[,1]
+  norm.counts = norm.counts[,-1]
+  #Use counts with clinical data
+  annot = as.data.frame(cbind(SAMPLE_EXP=colnames(norm.counts)))
+  annot$PATIENT_ID = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4}).*","\\2", annot[,1])
+  annot$SAMPLE_ID = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{3}).*",
+                         "TCGA\\-\\1\\-\\2\\-\\3", annot[,1])
+  #Add Sample_Type#
+  annot$SAMPLE_CODE = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4}\\.([[:alnum:]]{2})).*","\\3", annot[,1])
+  annot$SAMPLE_TYPE <- ifelse(as.integer(annot$SAMPLE_CODE)>=20, 'Control',
+                              ifelse(as.integer(annot$SAMPLE_CODE)>=10, 'Normal', 'Tumor'))
+  #IF multiple samples from the same patient, Use lowest code 
+  annot %>% 
+    group_by(PATIENT_ID,SAMPLE_TYPE) %>% dplyr::summarise(MIN.CODE = min(SAMPLE_CODE)) -> aux
+  
+  aux$ID = paste(aux$PATIENT_ID,aux$MIN.CODE,sep = '')
+  annot$auxID = paste(annot$PATIENT_ID,annot$SAMPLE_CODE,sep = '')
+  annot = filter(annot,auxID%in%aux$ID)
+  annot$auxID = NULL
+  rm(aux)
+  
+  
+  annot$TP53.STATUS = NA
+  annot[which(annot$SAMPLE_TYPE == 'Normal'), 'TP53.STATUS'] = 'Normal'
+  annot[which(annot$PATIENT_ID %in% p53.mutants&annot$SAMPLE_TYPE=='Tumor'),'TP53.STATUS'] = 'Mt'
+  annot[which(annot$SAMPLE_TYPE=='Tumor'&is.na(annot[,'TP53.STATUS'])),'TP53.STATUS'] = 'Wt'
+
+  ####ENTREZ.ID to SYMBOL
+  norm.counts = norm.counts[which(rownames(norm.counts)%in%p53.int$EntrezID),]
+  rownames(norm.counts) = gene.annot[match(rownames(norm.counts),gene.annot[,'Entrez.Gene.ID']),'Approved.Symbol']
+  sig.exp = data.frame(t(norm.counts))
+  
+  sig = p53.int[which(p53.int$GeneSymbol%in%colnames(sig.exp)&p53.int$GeneSymbol%in%p53.low),c("GeneSymbol",'EntrezID')]
+  colnames(sig) = c('probe','EntrezGene.ID')
+  sig$coefficient = 1
+  
+  score = sig.score(x = sig,data = sig.exp,annot = sig)
+  sig.exp$p53.string.sig = score$score
+  
+  sig.exp$PATIENT_ID = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4}).*","\\2", rownames(sig.exp))
+  
+  sig.exp = full_join(sig.exp,annot)
+  ###Only tumors
+  sig.exp = filter(sig.exp,SAMPLE_TYPE=='Tumor')
+  cancer.mat = left_join(sig.exp,clinical)
+
+  expression.list[[cancer]] = cancer.mat
+}
+
+
+
+
+####Plot densities#####
+#DoDensityPlotGenderRMAF(dat = mat, dat.col = 'XIST',fill.col = 'gender',title.txt = 'XIST Distribution')
+
+
+########################
 
 
 # ####Discretize p53 string mutations by patient
-DNA.muts = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv")
-DNA.muts.p53.string = filter(DNA.muts,HUGO_SYMBOL%in%as.vector(sig$probe ))
-as.data.frame(DNA.muts.p53.string %>% group_by(PATIENT_ID) %>% dplyr::summarise(N.P = n())) -> desc.p53.string.muts.numbers
-mat$p53.string.muts.desc = desc.p53.string.muts.numbers[match(mat$PatientID,desc.p53.string.muts.numbers$PATIENT_ID),'N.P']
-mat[which(is.na(mat$p53.string.muts.desc)),'p53.string.muts.desc'] = 0
-
-mat$p53.string.muts.desc.d = ifelse(mat$p53.string.muts.desc==0,'Wt',ifelse(mat$p53.string.muts.desc>6,NA,ifelse(mat$p53.string.muts.desc>2,'3 to 6','1 to 2')))
-
-pdf(paste(output_dir,"/TCGA_p53_set_mutations_survival_os.pdf",sep=""))
-
-mat$comb = paste(mat$p53.string.muts.desc.d,mat$p53.status,sep = '.')
-mat2 = mat[!is.na(mat$p53.string.muts.desc.d)&mat$p53.string.muts.desc.d!='Wt',]
-
-survplot(mat2,quantcol="p53.string.muts.desc.d",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
-         contcol = 'p53.string.muts.desc.d',title= paste("TCGA p53 string muts"),percentile.colors=c("blue","grey","red",'black'),
-         time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 5)
-
-
-survplot(mat2,quantcol="comb",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
-         contcol = 'comb',title= paste("TCGA Gender"),percentile.colors=c("blue","grey","red",'black','yellow','green','orange','purple'),
-         time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 5)
-
-
-dev.off()
-
-
-
-####Do plots
-
-
-genes = c(as.vector(sig$probe),'p53.string.sig')
-#genes = c('p53.string.sig')
-
-###Male and female 
-
-
-tiff(paste(output_dir,"/TCGA_42_mts_p53_survival_dss.tiff",sep=""),width = 2500,height = 2800,res = 500)
-survplot(mat,quantcol="p53.status",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F,surv.line = NULL,
-         contcol = 'p53.status',title= paste("TCGA Gender"),percentile.colors=c("turquoise1",'darkorchid1'), mark.size = 0,
-         time.mult=33.3,use.cont = F,ylab="Disease Specific Survival",max.x = 42, line.type = c(1,1))
-dev.off()
-mat$comb = paste(mat$p53.status,mat$gender,sep = '.')
-
-tiff(paste(output_dir,"/TCGA_5_yrs_p53_gender_survival_dss.tiff",sep=""),width = 2500,height = 2800,res = 500)
-survplot(mat,quantcol="comb",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F,
-         contcol = 'comb',title= paste("TCGA"),percentile.colors=c('red','black','lightcoral','mediumspringgreen'),
-         time.mult=365,use.cont = F,ylab="Disease Specific Survival",max.x = 5, line.type = c(2,2,3,1))
-
-dev.off()
-
-#####Only Females and males
-mat2 = mat[mat$gender=='FEMALE',]
-mat2$comb = paste(mat2$p53.status,mat2$gender,sep = '.')
-
-tiff(paste(output_dir,"/TCGA_14_yrs_p53_female_survival_dss.tiff",sep=""),width = 2000,height = 2000,res = 270)
-survplot(mat2,quantcol="comb",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F,
-         contcol = 'p53.status',title= paste("TCGA"),percentile.colors=c('red','black'),
-         time.mult=365,use.cont = F,ylab="Disease Specific Survival",max.x = 14, line.type = c(3,3))
-
-dev.off()
-
-
-mat2 = mat[mat$gender=='MALE',]
-mat2$comb = paste(mat2$p53.status,mat2$gender,sep = '.')
-
-tiff(paste(output_dir,"/TCGA_5_yrs_gender_p53_survival_os.tiff",sep=""),width = 2500,height = 2800,res = 400)
-survplot(mat2,quantcol="comb",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
-         contcol = 'p53.status',title= paste("TCGA"),percentile.colors=c('red','black'),
-         time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 5, line.type = c(1,1))
-
-dev.off()
-
-
-
-# for (g in genes){
+# DNA.muts = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv")
+# DNA.muts.p53.string = filter(DNA.muts,HUGO_SYMBOL%in%as.vector(sig$probe ))
+# as.data.frame(DNA.muts.p53.string %>% group_by(PATIENT_ID) %>% dplyr::summarise(N.P = n())) -> desc.p53.string.muts.numbers
+# mat$p53.string.muts.desc = desc.p53.string.muts.numbers[match(mat$PatientID,desc.p53.string.muts.numbers$PATIENT_ID),'N.P']
+# mat[which(is.na(mat$p53.string.muts.desc)),'p53.string.muts.desc'] = 0
 # 
-#   gene.d = paste(g,'d',sep = '.')
-#   mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
-#   mat$comb = paste(mat$gender,mat[,gene.d],sep = '.')
+# mat$p53.string.muts.desc.d = ifelse(mat$p53.string.muts.desc==0,'Wt',ifelse(mat$p53.string.muts.desc>6,NA,ifelse(mat$p53.string.muts.desc>2,'3 to 6','1 to 2')))
 # 
-#   pdf(paste(output_dir,"/TCGA_",g,"_gender_survival_os.pdf",sep=""))
-#   mat2 = mat[which(!is.na(mat[,g])),]
-#   survplot(mat2,quantcol="comb",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
-#            contcol = g,title= paste("TCGA ",g),percentile.colors=c("blue","grey","red",'black'),
-#            time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 15)
+# pdf(paste(output_dir,"/TCGA_p53_set_mutations_survival_os.pdf",sep=""))
 # 
-#   dev.off()
+# mat$comb = paste(mat$p53.string.muts.desc.d,mat$p53.status,sep = '.')
+# mat2 = mat[!is.na(mat$p53.string.muts.desc.d)&mat$p53.string.muts.desc.d!='Wt',]
+# 
+# survplot(mat2,quantcol="p53.string.muts.desc.d",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
+#          contcol = 'p53.string.muts.desc.d',title= paste("TCGA p53 string muts"),percentile.colors=c("blue","grey","red",'black'),
+#          time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 5)
 # 
 # 
-# }
+# survplot(mat2,quantcol="comb",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
+#          contcol = 'comb',title= paste("TCGA Gender"),percentile.colors=c("blue","grey","red",'black','yellow','green','orange','purple'),
+#          time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 5)
+# 
+# 
+# dev.off()
+# 
+# 
+# 
+# ####Do plots
+# 
+# 
+# genes = c(as.vector(sig$probe),'p53.string.sig')
+# #genes = c('p53.string.sig')
+# 
+# ###Male and female 
+# 
+# 
+# tiff(paste(output_dir,"/TCGA_42_mts_p53_survival_dss.tiff",sep=""),width = 2500,height = 2800,res = 500)
+# survplot(mat,quantcol="p53.status",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F,surv.line = NULL,
+#          contcol = 'p53.status',title= paste("TCGA Gender"),percentile.colors=c("turquoise1",'darkorchid1'), mark.size = 0,
+#          time.mult=33.3,use.cont = F,ylab="Disease Specific Survival",max.x = 42, line.type = c(1,1))
+# dev.off()
+# mat$comb = paste(mat$p53.status,mat$gender,sep = '.')
+# 
+# tiff(paste(output_dir,"/TCGA_5_yrs_p53_gender_survival_dss.tiff",sep=""),width = 2500,height = 2800,res = 500)
+# survplot(mat,quantcol="comb",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F,
+#          contcol = 'comb',title= paste("TCGA"),percentile.colors=c('red','black','lightcoral','mediumspringgreen'),
+#          time.mult=365,use.cont = F,ylab="Disease Specific Survival",max.x = 5, line.type = c(2,2,3,1))
+# 
+# dev.off()
+# 
+# #####Only Females and males
+# mat2 = mat[mat$gender=='FEMALE',]
+# mat2$comb = paste(mat2$p53.status,mat2$gender,sep = '.')
+# 
+# tiff(paste(output_dir,"/TCGA_14_yrs_p53_female_survival_dss.tiff",sep=""),width = 2000,height = 2000,res = 270)
+# survplot(mat2,quantcol="comb",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F,
+#          contcol = 'p53.status',title= paste("TCGA"),percentile.colors=c('red','black'),
+#          time.mult=365,use.cont = F,ylab="Disease Specific Survival",max.x = 14, line.type = c(3,3))
+# 
+# dev.off()
+# 
+# 
+# mat2 = mat[mat$gender=='MALE',]
+# mat2$comb = paste(mat2$p53.status,mat2$gender,sep = '.')
+# 
+# tiff(paste(output_dir,"/TCGA_5_yrs_gender_p53_survival_os.tiff",sep=""),width = 2500,height = 2800,res = 400)
+# survplot(mat2,quantcol="comb",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
+#          contcol = 'p53.status',title= paste("TCGA"),percentile.colors=c('red','black'),
+#          time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 5, line.type = c(1,1))
+# 
+# dev.off()
+# 
+# 
+# 
+# # for (g in genes){
+# # 
+# #   gene.d = paste(g,'d',sep = '.')
+# #   mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+# #   mat$comb = paste(mat$gender,mat[,gene.d],sep = '.')
+# # 
+# #   pdf(paste(output_dir,"/TCGA_",g,"_gender_survival_os.pdf",sep=""))
+# #   mat2 = mat[which(!is.na(mat[,g])),]
+# #   survplot(mat2,quantcol="comb",survcol="OS",timecol="OS.time",subset.mat = NULL, show.conf.int = F,
+# #            contcol = g,title= paste("TCGA ",g),percentile.colors=c("blue","grey","red",'black'),
+# #            time.mult=365,use.cont = F,ylab="Overall Survival",max.x = 15)
+# # 
+# #   dev.off()
+# # 
+# # 
+# # }
+# 
+# #####p53 Wt vs p53 Mt
+# ###For Sue
+# ####p53 signature only
+# bckup = mat
+# g= "XIST"
+# demo = 'DSS'
+# years = 14
+# y.lab = ifelse(demo=='DSS','Disease Specific Survival',ifelse(demo=="OS","Overall Survival","Disease Free Survival"))
+# evantcolname = ifelse(demo=='DSS','DSS',ifelse(demo=="OS","OS","e.dfs"))
+# timecolname = ifelse(demo=='DSS','DSS.time',ifelse(demo=="OS","OS.time","t.dfs"))
+# 
+# 
+# gene.d = paste(g,'d',sep = '.')
+# mat = mat[which(!is.na(mat[,g])&mat$gender=='FEMALE'),]
+# 
+# mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+# mat$comb = paste(mat$p53.status,mat[,gene.d],mat$gender,sep = '.')
+# 
+# tiff(paste(output_dir,"/TCGA_",years,"_yrs__p53_status_XIST_female_survival_",demo,".tiff",sep=""),width = 2500,height = 2800,res = 500)
+# survplot(mat,quantcol="comb",survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+#          contcol = g,title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+#          line.width = 2,
+#          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F)
+# dev.off()
+# mat = bckup
 
-#####p53 Wt vs p53 Mt
-###For Sue
-####p53 signature only
-bckup = mat
-g= "p53.string.sig"
-gene.d = paste(g,'d',sep = '.')
-mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
-mat = mat[which(!is.na(mat[,g])),]
-mat$comb = paste(mat$p53.status,mat$gender,sep = '.')
-
-tiff(paste(output_dir,"/TCGA_42_mts_gender_p53_status_survival_dss.tiff",sep=""),width = 2500,height = 2800,res = 500)
-survplot(mat,quantcol="comb",survcol="DSS",timecol="DSS.time",subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
-         contcol = g,title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
-         line.width = 2,
-         time.mult=33.33,use.cont = F,ylab="Disease Specific Survival",max.x = 42,print.significant.only = F)
-dev.off()
-mat = bckup
 
 
+#Do by cancer type
+mat2 = mat
+for (c in c(datasets,'All')){
+  print(c)
+  adjust.tmp = NULL
+  if (c == 'All'){
+    mat = mat2
+    #adjust.tmp = c('CANCER_TYPE')
+  }else{
+    mat = expression.list[[c]]  
+  }
+
+  for (cf in adjust.hr){
+    na.cont1 = length(mat[which(mat[,cf] == "[Not Available]"),cf])
+    na.cont1 = length(mat[which(is.na(mat[,cf])),cf]) + na.cont1
+    na.cont1 = length(mat[which(mat[,cf] == "[Not Evaluated]"),cf])  + na.cont1
+    na.cont1 = length(mat[which(mat[,cf] == "[Unknown]"),cf]) + na.cont1
+    half = dim(mat)[1]/4
+    
+    
+    if(na.cont1 < half){
+      adjust.tmp = c(adjust.tmp,cf)
+    }
+    
+  }
+  
+  c.dir = paste(output_dir,c,sep = '')
+  if (!file.exists(c.dir)){
+    dir.create(file.path(c.dir))
+  }
+  pdf(paste(c.dir,"/TCGA_",c,"_p53_sig_survival.pdf",sep=""))
+  
+  for( d in c('OS','DSS') ){
+  
+    for (t in c(5,14)){
+      bckup = mat
+      g= "p53.string.sig"
+      demo = d
+      years = t
+      y.lab = ifelse(demo=='DSS','Disease Specific Survival',ifelse(demo=="OS","Overall Survival","Disease Free Survival"))
+      evantcolname = ifelse(demo=='DSS','DSS',ifelse(demo=="OS","OS","e.dfs"))
+      timecolname = ifelse(demo=='DSS','DSS.time',ifelse(demo=="OS","OS.time","t.dfs"))
+      gene.d = paste(g,'d',sep = '.')
+      
+      # chisq.test( table( mat$gender, mat$TP53.STATUS ) )
+      # chisq.test( table( mat$gender, mat$PATHOLOGIC_STAGE ) )
+      # 
+      # chisq.test( table( mat$TP53.STATUS, mat$PATHOLOGIC_STAGE ) )
+      
+      
+      # mat = mat[which(!is.na(mat[,g])),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat$gender,sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol='gender',survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = 'gender',title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F , adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # mat = mat[which(!is.na(mat[,g])),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat$TP53.STATUS,sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol='TP53.STATUS',survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = 'TP53.STATUS',title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F , adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # mat = mat[which(!is.na(mat[,g])),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat$TP53.STATUS,mat$gender,sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol='Var',survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = 'Var',title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F , adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # 
+      # 
+      # mat = mat[which(!is.na(mat[,g])),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat[,gene.d],sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol="Var",survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = g,title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F , adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # 
+      # mat = mat[which(!is.na(mat[,g])),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat$TP53.STATUS,mat[,gene.d],sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol="Var",survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = "Var",title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F , adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # 
+      # mat = mat[which(!is.na(mat[,g])),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat[,gene.d],mat$gender,sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol="Var",survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = "Var",title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F, adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # mat = mat[which(!is.na(mat[,g])&mat$gender=='FEMALE'),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat$TP53.STATUS,mat[,gene.d],mat$gender,sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol="Var",survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = "Var",title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F, adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+      # 
+      # mat = mat[which(!is.na(mat[,g])&mat$gender=='MALE'),]
+      # mat[,gene.d] = ifelse(mat[,g]>=median(mat[,g],na.rm = T),paste('hi',g,sep = '-'),paste('lo',g,sep = '-'))
+      # mat$Var = as.factor(paste(mat$TP53.STATUS,mat[,gene.d],mat$gender,sep = '.'))
+      # 
+      # 
+      # survplot(mat,quantcol="Var",survcol=evantcolname,timecol=timecolname,subset.mat = NULL, show.conf.int = F, line.type = c(2,1,2,1),
+      #          contcol = "Var",title= paste(g),percentile.colors=c('blue','black','magenta','red'), mark.size = 0.5, 
+      #          line.width = 2,
+      #          time.mult=365,use.cont = F,ylab=y.lab,max.x = years,print.significant.only = F, adjust.hr.by = adjust.tmp)
+      # 
+      # mat = bckup
+    }  
+    
+  }
+  dev.off()
+}
 
 
+
+
+  
+  
 ####ALl genes
 genes = c(as.vector(sig$probe))
 
