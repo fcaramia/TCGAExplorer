@@ -2,8 +2,9 @@
 #Read Mutations
 rm(list = ls())
 datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","PAAD","READ","SKCM",'LGG',
-             'COAD',"STAD",'LUAD','KIRC.FEMALES','KIRC.MALES')
+             'COAD',"STAD",'LUAD','KIRC.FEMALES','KIRC.MALES','BRCA','OV','PRAD')
 
+#datasets = c("BLCA","LUSC","LUAD","SKCM",'COAD','HNSC',"LGG")
 
 dir="~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Mutation.Data/"
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
@@ -45,7 +46,15 @@ for (i in datasets)
 
 #exmut = exmut[which(exmut$MUTATION_ID%in%mutations$MUTATION_ID),]
 
+##Remove duplicates, keep highest sum
+exmut$SUM = exmut$REF_COUNT + exmut$ALT_COUNT
+
+exmut <- exmut[order(exmut$MUTATION_ID, -abs(exmut$SUM) ), ]
+exmut = exmut[ !duplicated(exmut$MUTATION_ID), ]
+exmut <- exmut[order(exmut$CANCER_TYPE, exmut$PATIENT_ID ), ]
+
 #Save results
-write.csv(exmut,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.KIRC.csv", row.names = F)
+write.csv(exmut,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.csv", row.names = F)
+#write.csv(exmut,"~/Desktop/TCGA.ExMut.csv", row.names = F)
 #clean up
 rm(mutations,exmut)

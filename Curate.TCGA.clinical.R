@@ -1,12 +1,12 @@
 library(dplyr)
 rm(list=ls())
 #Datasets to use
-datasets = c("KIRC","LUAD","SARC","ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'BRCA','OV')
-
+datasets = c("KIRC","LUAD","SARC","ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'BRCA','OV','PRAD')
+ffpe_tbl = data.table::fread('~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/FFPE.RNA.Files/ffpe_rna_files.csv')
 dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Clinical.Data/"
 data = NULL
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
-key_words = c('status','gender','radiation','metas',"age","race","ethnicity","smoke","cigarette","tobacco","stage","histology","alcohol","score",'pam50','pam')
+key_words = c('status','gender','radiation','metas',"age","race","ethnicity","smoke","cigarette","tobacco","stage","histology","alcohol","score",'pam50','pam','ffpe')
 key_words = toupper(key_words)
 cols = NULL
 for (i in datasets)
@@ -22,8 +22,9 @@ for (i in datasets)
   aux_data$SMOKING_STATUS = NA
   aux_data$PATIENT_ID = toupper(aux_data$PATIENT_ID)
   if ('TOBACCO_SMOKING_HISTORY'%in%colnames(aux_data)){
-    aux_data$SMOKING_STATUS = ifelse(aux_data$TOBACCO_SMOKING_HISTORY=='1','yes','no')
+    aux_data$SMOKING_STATUS = ifelse(aux_data$TOBACCO_SMOKING_HISTORY!='1','yes','no')
   }
+   
   if ('RACE'%in%colnames(aux_data)){
     aux_data$RACE = ifelse(aux_data$RACE=='white','white','nonwhite')
   }
@@ -49,6 +50,11 @@ for (i in datasets)
   
   rm(aux_data)
 }
+
+
+PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2",ffpe_tbl$case_id)
+
+data$IS_FFPE = ifelse(data$PATIENT_ID%in%PATIENT_ID,T,F)
 
 write.csv(data,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.curated.clinical.csv", row.names = F)
 

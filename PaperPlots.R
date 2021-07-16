@@ -4,13 +4,14 @@ library(ggrepel)
 source('ExpressionPlotsFunctions.R')
 source('PropensityScoresFunctions.R')
 library(gtools)
+library(data.table)
 
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/AllDataSets/"
 #Datasets and directories and variables
 datasets = c('ALL',"ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
 #datasets = c("READ")
 
-RMAF = read.csv(paste(output.dir,'Computed.All.RMAF.csv',sep = ''))
+RMAF = fread(paste(output.dir,'Computed.All.RMAF.csv',sep = ''))
 RMAF$POLYPHEN_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$POLYPHEN)
 RMAF$SIFT_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$SIFT)
 
@@ -40,11 +41,27 @@ n = length(levels(as.factor(as.vector(Xdf$name))))
 cols = rainbow(n, s=.6, v=.9)[sample(1:n,n)]
 Xdf$color = cols
 Xdf$offset = rep(c(0,-0.22),20)
+
+gtf = fread(input = '~/Documents/PhD/Data/GTF.hg19/Homo_sapiens.GRCh37.87.gtf',header = F,skip = '#!')
+colnames(gtf) = c("CHROMOSOME","SOURCE","TYPE","START","END","V6","V7","V8","V9")
+gtf = filter(gtf, CHROMOSOME=='X',TYPE == 'exon')
+gtf$GENE_NAME = gsub(".*gene_name \"(.*)\"; gene_source.*","\\1", gtf$V9)
+gtf = gtf[,c(1:5,10)]
+gtf =  gtf[order(gtf$START),]
+gtf %>% 
+  dplyr::arrange(START) %>% 
+  dplyr::group_by(g = cumsum(cummax(dplyr::lag(END, default = dplyr::first(END))) < START)) %>% 
+  dplyr::summarise(START = dplyr::first(START), END = max(END)) -> gtf.sorted
+
+escapers = c("PLCXD1","CSF2RA","IL3RA","SLC25A6","P2RY8","AKAP17A","TCONS_00017125","DHRSX","TCONS_00017281","CD99","XG","PRKX","LOC389906","HDHD1","TBL1X","MSL3","FRMPD4","TMSB4X","TRAPPC2","FANCB","CA5BP1","ZRSR2","AP1S2","SYAP1","TXLNG","PHEX","LOC100873065","EIF2S3","ZFX","IL1RAPL1","CXorf21","DMD","OTC","MED14","DDX3X","KDM6A","RBM3","USP27X","KDM5C","SMC1A","MAGED2","FAM104B","MTRNR2L10","LOC550643","FAAH2","EDA","RAB41","KIF4A","TEX11","FLJ44635","MAP2K4P1","XIST","JPX","FTX","TCONS_l2_00030263","BRWD3","KLHL4","DIAPH2","TSPAN6","TCONS_00017001","RBM41","COL4A6","ZCCHC16","AKAP14","LAMP2","C1GALT1C1","TCONS_00017461","XIAP","TENM1","TCONS_l2_00030350","MST4","SLC9A6","MAP7D3","TCONS_00017017","GABRA3")
+gtf$color = ifelse(gtf$GENE_NAME%in%escapers,"blue",'red')
+
 p <- ggplot(RMAF[which(RMAF$CHROM=='X'),],aes(START_POSITION,RMAF)) 
 p +  geom_point(size = 1.5, alpha=0.05) + facet_grid(CANCER_TYPE~GENDER,scales =  'free_x') + 
-  geom_segment(data = Xdf,inherit.aes = F,mapping = aes(x=start,y=-.40, xend = end, yend=-.40,color=name), size=4, show.legend = F) +
-  scale_color_manual(values = Xdf$color) +scale_y_continuous(limits = c(-.70,1.15)) + 
-  geom_text(data = Xdf,inherit.aes = F,show.legend = F,mapping = aes(x=start,y = -.4+offset,label=name),size = 1.75,hjust=-0.1)
+  #geom_segment(data = Xdf,inherit.aes = F,mapping = aes(x=start,y=-.60, xend = end, yend=-.60,color=name), size=4, show.legend = F) +
+  #scale_color_manual(values = Xdf$color) +scale_y_continuous(limits = c(-.70,1.15)) + 
+  #geom_text(data = Xdf,inherit.aes = F,show.legend = F,mapping = aes(x=start,y = -.4+offset,label=name),size = 1.75,hjust=-0.1) +
+  geom_segment(data = gtf,inherit.aes = F,mapping = aes(x=START,y=-.40, xend = END, yend=-.40,color=color), size=3, show.legend = F, alpha = 1)
 
 ###################
 

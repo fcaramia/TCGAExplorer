@@ -12,7 +12,6 @@ ccle.rna.raw <- aggregate(. ~ Description, data = ccle.rna, max)
 rownames(ccle.rna.raw) = ccle.rna.raw$Description
 ccle.rna.raw$Description = NULL
 ###Normalise####
-ccle.rna.norm = as.data.frame(DoCPMNorm(raw.counts = ccle.rna.raw,pop.genes = .1))
-
+ccle.rna.norm = as.data.frame(DoCPMNorm(raw.counts = ccle.rna.raw,pop.genes = 0))
 ccle.rna.norm$Gene.ID = rownames(ccle.rna.norm)
 write.csv(ccle.rna.norm,'~/Documents/PhD/Data/CCLE/CCLE.NORM.COUNTS.csv', row.names = F)

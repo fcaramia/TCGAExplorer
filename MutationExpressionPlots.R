@@ -10,7 +10,7 @@ datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 
 ##RMAF DATA
-RMAF = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.V5.csv")
+RMAF = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.csv")
 RMAF$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2", RMAF$SAMPLE)
 
 signature.file =  "~/Documents/PhD/GenderAnalysis/TP53_interactions/Candidates.2018.03.01.csv"

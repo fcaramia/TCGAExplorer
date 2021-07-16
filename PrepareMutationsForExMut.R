@@ -2,12 +2,14 @@ library(dplyr)
 library(data.table)
 library(AnnotationHub)
 rm(list = ls())
+
 muts = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.raw.TCGA.curated.mutations.csv")
 
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'KIRC','OV','BRCA','PRAD')
+muts %>% filter(CANCER_TYPE %in% datasets) -> muts
 
-##Change GDC mutations from hg38 to hg19 
 library(rtracklayer)
-
+##Change GDC mutations from hg38 to hg19 
 ah = AnnotationHub()
 chainfiles <- query(ah , c("hg38", "hg19", "chainfile"))
 hg38Tohg19 <- chainfiles[['AH14108']]
@@ -36,6 +38,7 @@ muts$strand = NULL
 
 
 firehose = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.firehose.TCGA.curated.mutations.csv", as.is=T)
+filter(firehose,CANCER_TYPE%in%datasets) -> firehose
 firehose$PATIENT_ID = gsub("TCGA\\-([[:alnum:]]{2})\\-([[:alnum:]]{4}).*","\\2", firehose$SAMPLE_ID)
 
 firehose$MUTATION_ID = paste(firehose$PATIENT_ID,firehose$HUGO_SYMBOL,firehose$CHROMOSOME,firehose$START_POSITION,
@@ -67,10 +70,9 @@ firehose.not.in.muts %>%
 
 
 rbind(muts,firehose.not.in.muts[,colnames(muts)]) -> all.muts
-
 write.csv(all.muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/full.reduced.all.raw.TCGA.curated.mutations.csv", row.names = F)
 
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'KIRC','OV','BRCA')
+
 chromosomes = c('1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22','X','Y')
 all.muts %>% filter(CANCER_TYPE%in%datasets&CHROMOSOME%in%chromosomes) -> muts
 

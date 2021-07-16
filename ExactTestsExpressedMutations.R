@@ -13,7 +13,7 @@ Exact_Statistic <- function(a, b, c , d){
   return(z)
 }
 #Datasets and directories and variables
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'LUAD')
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'LUAD','BRCA','OV','PRAD')
 #datasets = c("KIRC")
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 
@@ -102,8 +102,8 @@ DNA.VAF %>% group_by(GENDER,PATIENT_ID,TP53.STATUS) %>% dplyr::summarise() %>%
   group_by(GENDER,TP53.STATUS) %>% dplyr::summarise(N.P = n()) -> patient.numbers.tp53.status
 
 
-######RMAF DATA#############
-RMAF = read.csv("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.V5.csv", as.is=T)
+# ######RMAF DATA#############
+RMAF = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/all.TCGA.ExMut.csv")
 
 filter.out = c("Silent",'Intron','IGR',"In_Frame_Ins" ,"In_Frame_Del", "lincRNA" )
 
@@ -119,62 +119,55 @@ RMAF$EXPRS.GENE = 'EXPRS'
 #Filter to only use cancer tissues
 
 #Define Expressed mutation RNA
-RMAF$Z.SCORE = 0
+RMAF$Z.SCORE = NA
+RES = NULL
 for (cancer in datasets){
   print(cancer)
-  genes.not.exprs = c()
+  RMAF_CANCER = filter(RMAF,CANCER_TYPE == cancer)
   #Read expression data
-  norm.counts = read.csv(paste(sep="",output.dir,cancer,"/Normalisation/Norm.Log.Counts.csv"))
-  pat.ids.type = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{2}).*","\\2-\\3", colnames(norm.counts))
-  pat.ids = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{2}).*","\\2", colnames(norm.counts))
-  if(cancer=='LGG'){
-    pat.ids.norm = paste(pat.ids,'01',sep = '-')
-  }else{
+  norm.counts = data.frame(data.table::fread(paste(sep="",output.dir,cancer,"/Normalisation/Norm.Log.Counts.csv")))
+  #Keep HUGO
   
-    pat.ids.norm = paste(pat.ids,'11',sep = '-')
-  }
-
-  colnames(norm.counts) = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{2}).*","\\2-\\3",
+  norm.counts$V1 = gsub(".*\\|(.*)","\\1", norm.counts$V1)
+  norm.counts$sum = rowSums(norm.counts[,2:dim(norm.counts)[2]])
+  norm.counts <- norm.counts[order(norm.counts$V1, -abs(norm.counts$sum) ), ]
+  norm.counts = norm.counts[ !duplicated(norm.counts$V1), ]
+  rownames(norm.counts) = norm.counts$V1
+  
+  pat.ids = data.frame(p.id=gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{2}).*","\\2-\\3", colnames(norm.counts)))
+  pat.ids$type = as.numeric(gsub("([[:alnum:]]{4})\\-([[:alnum:]]{2}).*","\\2",pat.ids$p.id))
+  pat.ids$type.name = ifelse(pat.ids$type<10,'Tumor','other')
+  pat.ids$p.id = gsub("([[:alnum:]]{4})\\-([[:alnum:]]{2}).*","\\1",pat.ids$p.id)
+  
+  
+  colnames(norm.counts) = gsub("TCGA\\.([[:alnum:]]{2})\\.([[:alnum:]]{4})\\.([[:alnum:]]{2}).*","\\2",
                                    colnames(norm.counts))
-  cancer.counts = norm.counts[,-which(colnames(norm.counts)%in%pat.ids.norm)]
-  colnames(cancer.counts) = gsub("([[:alnum:]]{4})\\-([[:alnum:]]{2}).*","\\1", colnames(cancer.counts))
-
-  RMAF %>% filter(CANCER_TYPE==cancer) -> RMAF.cancer
-  for (g in unique(RMAF.cancer$ENTREZ_GENE_ID)){
-
-    if(!(g%in%cancer.counts$X)){
-      #print(paste('Check',g,'in',cancer))
-      genes.not.exprs = c(g,genes.not.exprs)
-      next
-    }
-    RMAF.cancer %>% filter(ENTREZ_GENE_ID==g) -> aux1
-
-    for (p in unique(aux1$PATIENT_ID)){
-      #get all patients same cancer and gender
-      if(!(p%in%colnames(cancer.counts))){
-        next
-      }
-      gender = clinical.data[which(clinical.data$PATIENT_ID==p),'GENDER']
-      clinical.data %>% filter(CANCER_TYPE==cancer,GENDER==gender,PATIENT_ID%in%colnames(cancer.counts)) -> patients
-      exprs = cancer.counts[which(cancer.counts$X == g),patients$PATIENT_ID]
-      std = sd(exprs)
-      m = mean(as.numeric(exprs))
-      z = exprs[p] - m / std
-      #Record Z-score
-      RMAF[which(RMAF$PATIENT_ID==p&RMAF$ENTREZ_GENE_ID==g),'Z.SCORE'] = z
-
-
-    }
-  }
-  RMAF[which(RMAF$CANCER_TYPE==cancer&RMAF$ENTREZ_GENE_ID%in%genes.not.exprs),'EXPRS.GENE'] = 'NOT.EXPRS'
+  cancer.counts = norm.counts[,which(colnames(norm.counts)%in%pat.ids[which(pat.ids$type.name=='Tumor'),'p.id'])]
+  
+  #dat = data.matrix(cancer.counts[,2:dim(cancer.counts)[2]])
+  dat = data.matrix(cancer.counts)
+  z.mat = sweep(sweep(dat, 1, rowMeans(dat), `-`), 1, apply(dat,1, sd, na.rm = TRUE), `/`)
+  rownames(z.mat) = rownames(cancer.counts)
+  #Record Z-score
+  RMAF_CANCER = left_join(RMAF_CANCER, melt(z.mat), by= c("HUGO_SYMBOL" = "Var1" ,"PATIENT_ID"="Var2"))
+  RMAF_CANCER$Z.SCORE = RMAF_CANCER$value
+  RMAF_CANCER$value = NULL
+  
+  RMAF_CANCER = left_join(RMAF_CANCER, melt(as.matrix(cancer.counts)), by= c("HUGO_SYMBOL" = "Var1" ,"PATIENT_ID"="Var2"))
+  RMAF_CANCER$EXPRS.VALUE = RMAF_CANCER$value
+  RMAF_CANCER$value = NULL
+  RMAF_CANCER$EXPRS.GENE = ifelse(RMAF_CANCER$HUGO_SYMBOL%in%rownames(cancer.counts),"EXPRS",'NOT.EXPRS')
+  
+  RES = rbind(RES,RMAF_CANCER)
 }
 
+RMAF = RES
 ###############RESET###################
-write.csv(RMAF,paste(output.dir,'AllDataSets/Computed.All.RMAF.csv',sep = ''))
+fwrite(RMAF,paste(output.dir,'AllDataSets/Computed.All.RMAF.csv',sep = ''))
 
-P.Coding.X.genes = read.csv("~/Documents/PhD/GenderAnalysis/Genes.Coding.X.csv")
-RMAF = read.csv(paste(output.dir,'AllDataSets/Computed.All.RMAF.csv',sep = ''))
-RMAF %>% filter(ENTREZ_GENE_ID%in%P.Coding.X.genes$entrezgene) -> RMAF
+#P.Coding.X.genes = read.csv("~/Documents/PhD/GenderAnalysis/Genes.Coding.X.csv")
+RMAF = fread(input = paste(output.dir,'AllDataSets/Computed.All.RMAF.csv',sep = ''))
+#RMAF %>% filter(ENTREZ_GENE_ID%in%P.Coding.X.genes$entrezgene) -> RMAF
 RMAF$POLYPHEN_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$POLYPHEN)
 RMAF$SIFT_DISCRETE = gsub("(.*)\\(.*\\)","\\1", RMAF$SIFT)
 
@@ -356,7 +349,7 @@ for (cancer in datasets){
   res = rbind(res,as.data.frame(res.aux))
 }
 
-write.csv(res,paste(output.dir,'AllDataSets/','SM.Chi.Test.Propensity.KIRC.csv',sep = ''),row.names = F)
+write.csv(res,paste(output.dir,'AllDataSets/','SM.Chi.Test.Propensity.All.csv',sep = ''),row.names = F)
 
 
 ###Do p53 interactors tests
@@ -493,7 +486,7 @@ for (cancer in datasets){
   
 }
 
-write.csv(res,paste(output.dir,'AllDataSets/','EM.Chi.Test.Propensity.KIRC.csv',sep = ''),row.names = F)
+write.csv(res,paste(output.dir,'AllDataSets/','EM.Chi.Test.Propensity.All.csv',sep = ''),row.names = F)
 
 
 ###Do p53 interactors tests

@@ -20,7 +20,7 @@ Find_cell <- function(table,row,col, name='core-fg'){
 }
 
 PrintDiffExpTable <- function(contrast, fit, dir, contrast.name, gene.annot){
-  top.t = topTable(fit,coef = contrast.name, sort.by = 'p', number = Inf, p.value = 1,adjust.method = 'BH')
+  top.t = topTable(fit,coef = contrast.name, sort.by = 'p', number = Inf, p.value = 1,adjust.method = 'fdr')
   top.t$ENTREZ.ID = as.integer(rownames(top.t))
   top.t$GENE.SYMBOL = gene.annot[match(rownames(top.t),gene.annot[,'Entrez.Gene.ID']),'Approved.Symbol']
   top.t$CHROMOSOME = gene.annot[match(rownames(top.t),gene.annot[,'Entrez.Gene.ID']),'Chrm']
@@ -30,10 +30,18 @@ PrintDiffExpTable <- function(contrast, fit, dir, contrast.name, gene.annot){
 }
 
 PrintDiffExpTable2 <- function(contrast, fit, dir, contrast.name, gene.annot){
-  top.t = topTable(fit,coef = contrast.name, sort.by = 'p', number = Inf, p.value = 1,adjust.method = 'BH')
+  top.t = topTable(fit,coef = contrast.name, sort.by = 'p', number = Inf, p.value = 1,adjust.method = 'fdr')
   top.t$SYMBOL = rownames(top.t)
   top.t$SYMBOL.EXCEL.VIEW = paste('`',rownames(top.t),sep = '')
   top.t$CHROMOSOME = gene.annot[match(rownames(top.t),gene.annot[,'Approved.Symbol']),'Chrm']
+  
+  write.csv(top.t, paste(dir,contrast.name,'.csv',sep = ''), row.names = F)
+  return(top.t)
+}
+
+PrintDiffExpTableGen <- function(contrast, fit, dir, contrast.name, gene.annot, name.in.annot=NULL, cols = NULL){
+  top.t = topTable(fit,coef = contrast.name, sort.by = 'p', number = Inf, p.value = 1,adjust.method = 'fdr')
+  top.t = cbind(top.t,gene.annot[match(rownames(top.t),gene.annot[,name.in.annot]),cols])
   
   write.csv(top.t, paste(dir,contrast.name,'.csv',sep = ''), row.names = F)
   return(top.t)
@@ -334,13 +342,20 @@ DoMDSPlot <- function(norm.data, dir, tittle, annot, color.cols){
   
 }
 
-DoMultPCAPlots <- function(data, annot, dir, title, color.cols){
-  pdf(paste(dir,'/PCAPlots.pdf',sep = ''))
+DoMultPCAPlots <- function(data, annot, dir, title,all.samps.by, color.cols, filename='PCAPlots', spec = NULL){
+  pdf(paste(dir,'/',filename,'.pdf',sep = ''))
   print('Plot general PCA by variables')
   pca = prcomp(data)
-  for(c in color.cols){
+  
+  for(c in all.samps.by){
+    lvls = length(levels(as.factor(annot[,c])))
+    n <- lvls
+    qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+    col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
     print(
-      autoplot(pca,data = annot, colour = c) +  ggtitle (paste(title,'All Samples'))
+      autoplot(object = pca,data = annot, colour = c, label.size = 2, label=F) +  ggtitle (paste(title,'All Samples')) + 
+        scale_color_manual(values=colorRampPalette(c('black','red','yellow','purple','green','blue','orange','grey'))( lvls) ) +
+        geom_text(aes(label=annot[,c]),hjust=0.5, vjust=-0.6, size = 1.5)
     )
     
   }
@@ -357,7 +372,7 @@ DoMultPCAPlots <- function(data, annot, dir, title, color.cols){
       print(col1)
       print(col2)
       for(v in levels(as.factor(annot[,col1]))){
-        samples = as.vector(annot[which(annot[,col1]==v),"SAMPLE_ID"])
+        samples = as.vector(annot[which(annot[,col1]==v),"Sample.ID"])
         if(length(samples)<=1){
           next
         }
@@ -369,27 +384,27 @@ DoMultPCAPlots <- function(data, annot, dir, title, color.cols){
         )
         
       }
-      for(v in levels(as.factor(annot[,col2]))){
-        samples = as.vector(annot[which(annot[,col2]==v),"SAMPLE_ID"])
-        if(length(samples)<=1){
-          next
-        }
-        samp_annot = annot[which(annot[,col2]==v),]
-        dat = data[samples,]
-        pca = prcomp(dat)
-        print(
-          autoplot(pca,data = samp_annot, colour = col1) +  ggtitle (paste(title,'All',v))
-        )
-      }
-
+      # for(v in levels(as.factor(annot[,col2]))){
+      #   samples = as.vector(annot[which(annot[,col2]==v),"Sample.ID"])
+      #   if(length(samples)<=1){
+      #     next
+      #   }
+      #   samp_annot = annot[which(annot[,col2]==v),]
+      #   dat = data[samples,]
+      #   pca = prcomp(dat)
+      #   print(
+      #     autoplot(pca,data = samp_annot, colour = col1) +  ggtitle (paste(title,'All',v))
+      #   )
+      # }
+      
     }
   }
   
-    
   dev.off()
   
   
 }
+
 
 DoMultMDSPlots <- function(norm.data, dir, tittle, annot, color.cols){
   pdf(paste(dir,'/MDSPlots.pdf',sep = ''))

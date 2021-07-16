@@ -4,9 +4,9 @@ library(data.table)
 source("ExpressionPlotsFunctions.R")
 #TCGA Expression
 #Read Files
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","LUAD",'OV','BRCA')
-datasets = c("SKCM")
-input.dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Expression.Data/"
+datasets = c("ESCA","HNSC","KIRC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","LUAD",'OV','BRCA','SKCM','BRCA',"PRAD")
+#datasets = c("BRCA")
+input.dir = "~/Documents/PhD/Data/GDC2020/HTSeqCounts/"
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 mds.contrast = c('GENDER','SAMPLE_TYPE',"TP53_STATUS")
 #################
@@ -46,16 +46,16 @@ for (i in datasets)
   #########################
   
   ###Read Raw counts#####
-  raw.counts = data.frame(fread(paste(input.dir,i,'/RawExpression.csv',sep = "")))
-  rownames(raw.counts) = raw.counts[,1]
-  raw.counts = raw.counts[,-1]
+  raw.counts = data.frame(fread(paste(input.dir,i,'/',i,'.RawCounts.csv',sep = "")))
+  rownames(raw.counts) = raw.counts$Feature
+  raw.counts$Feature = NULL
   #########################
   #Keep ENTREZ.ID
-  rownames(raw.counts) = gsub(".*\\|(.*)","\\1", rownames(raw.counts))
+  #rownames(raw.counts) = gsub(".*\\|(.*)","\\1", rownames(raw.counts))
   #########################
   raw.counts = data.matrix(raw.counts)
   ###Normalise#############
-  logCPM = DoCPMNorm(raw.counts,pop.genes = .3)
+  logCPM = DoCPMNorm(raw.counts,pop.genes = .15)
   #########################
   ##Save Norm counts####
   write.csv(logCPM,paste(sep="",output.dir,i,"/Normalisation","/Norm.Log.Counts.csv"))
@@ -77,11 +77,11 @@ for (i in datasets)
   )
   ##########################
   ###Do Plots####
-  DoNormPlots(raw.data = raw.counts, norm.data = logCPM,
-              dir = paste(output.dir,i,"/Normalisation", sep ="" ), tittle = i,
-              annot = annot, color.cols = mds.contrast)
-  DoMultPCAPlots(data = t(logCPM), dir = paste(output.dir,i,"/Normalisation", sep ="" ), title = i,
-                annot = annot, color.cols = mds.contrast )
+  # DoNormPlots(raw.data = raw.counts, norm.data = logCPM,
+  #             dir = paste(output.dir,i,"/Normalisation", sep ="" ), tittle = i,
+  #             annot = annot, color.cols = mds.contrast)
+  # DoMultPCAPlots(data = t(logCPM), dir = paste(output.dir,i,"/Normalisation", sep ="" ), title = i,
+  #               annot = annot, color.cols = mds.contrast, all.samps.by = mds.contrast )
   ###############
 
   if (do.all == T){

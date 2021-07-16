@@ -1,10 +1,11 @@
 rm(list = ls())
 library(dplyr)
+library(data.table)
 source("ExpressionPlotsFunctions.R")
 source('PropensityScoresFunctions.R')
 #Datasets and directories and variables
 datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD")
-datasets = c("OV",'BRCA')
+datasets = c("LUAD",'LUSC')
 input.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 comp.gene.muts = c("TP53")
@@ -173,7 +174,7 @@ for(cancer in datasets){
           if(term1.2!=term2.2&&term1.1==term2.1&&term1.1!='Normal'){
             weights.small = DoCalcWeights(clinical.data = annot.small,default.confounding.factors = cfd,
                                         extra.cofounding.factors = cf)
-          
+          fwrite(weights.small, paste(output.dir,cancer,'.weights.',col1,'.',col2,'.csv',sep = ''),sep = ',')
             #Filter samples with weights
             if(!is.null(weights.small))
             {
