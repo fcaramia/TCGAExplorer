@@ -5,7 +5,7 @@ source("ExpressionPlotsFunctions.R")
 #TCGA Expression
 #Read Files
 datasets = c("ESCA","HNSC","KIRC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","LUAD",'OV','BRCA','SKCM','BRCA',"PRAD")
-#datasets = c("BRCA")
+datasets = c("BRCA")
 input.dir = "~/Documents/PhD/Data/GDC2020/HTSeqCounts/"
 output.dir = "~/Documents/PhD/GenderAnalysis/TCGA/Analysis/TCGAExpressionExplorerOutput/"
 mds.contrast = c('GENDER','SAMPLE_TYPE',"TP53_STATUS")
@@ -55,7 +55,7 @@ for (i in datasets)
   #########################
   raw.counts = data.matrix(raw.counts)
   ###Normalise#############
-  logCPM = DoCPMNorm(raw.counts,pop.genes = .15)
+  logCPM = DoCPMNorm(raw.counts,pop.genes = 0)
   #########################
   ##Save Norm counts####
   write.csv(logCPM,paste(sep="",output.dir,i,"/Normalisation","/Norm.Log.Counts.csv"))

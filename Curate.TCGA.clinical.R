@@ -1,7 +1,7 @@
 library(dplyr)
 rm(list=ls())
 #Datasets to use
-datasets = c("KIRC","LUAD","SARC","ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'BRCA','OV','PRAD')
+datasets = c("KIRC","LUAD","SARC","ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'BRCA','OV','PRAD','GBM')
 ffpe_tbl = data.table::fread('~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/FFPE.RNA.Files/ffpe_rna_files.csv')
 dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/Clinical.Data/"
 data = NULL

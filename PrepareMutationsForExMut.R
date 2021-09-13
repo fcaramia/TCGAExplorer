@@ -5,7 +5,7 @@ rm(list = ls())
 
 muts = fread("~/Documents/PhD/GenderAnalysis/TCGA/Analysis/reduced.all.raw.TCGA.curated.mutations.csv")
 
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'KIRC','OV','BRCA','PRAD')
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM","LUAD",'KIRC','OV','BRCA','PRAD',"GBM")
 muts %>% filter(CANCER_TYPE %in% datasets) -> muts
 
 library(rtracklayer)
@@ -81,6 +81,6 @@ muts = muts[order(muts$PATIENT_ID,as.numeric(muts$CHROMOSOME2),muts$START_POSITI
 muts2 = muts[order(as.numeric(muts$CHROMOSOME2),muts$START_POSITION),]
 muts$CHROMOSOME2 = NULL
 muts2$CHROMOSOME2 = NULL
-write.csv(muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.ExMutv5.AllChromosomes.csv", row.names = F)
+write.csv(muts,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.ExMutv6.AllChromosomes.csv", row.names = F)
 muts2 = muts[order(muts$CHROMOSOME,muts$START_POSITION),]
 write.csv(muts2,"~/Documents/PhD/GenderAnalysis/TCGA/Analysis/Mutations.For.Filtering.csv", row.names = F)

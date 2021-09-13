@@ -2,7 +2,7 @@ rm(list = ls())
 library(dplyr)
 #TCGA merge mutations curations
 #Read Mutations
-datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'KIRC','LUAD','BRCA','OV','PRAD')
+datasets = c("ESCA","HNSC","LUSC","BLCA","LIHC","STAD","LGG","COAD","PAAD","READ","SKCM",'KIRC','LUAD','BRCA','OV','PRAD',"GBM")
 #datasets = c('PRAD')
 dir = "~/Documents/PhD/Data/TCGA_2016_01_28_BROAD/GDC.Merged.Mutations//"
 badchars <- "[\xb5]|[\n]|[,]|[;]|[:]|[-]|[+]|[*]|[%]|[$]|[#]|[{]|[}]|[[]|[]]|[|]|[\\^]|[/]|[\\]|[.]|[_]|[ ]"
